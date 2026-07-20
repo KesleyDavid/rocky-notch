@@ -100,6 +100,20 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertEqual(store.sessions["s1"]?.tokens, 200)
     }
 
+    func testUserPromptSetsTask() throws {
+        var store = SessionStore()
+        let env = HookEnvelope(
+            requestId: "r", hookPid: 1, agent: "claude-code",
+            event: HookEvent(
+                sessionId: "s1", hookEventName: "UserPromptSubmit",
+                cwd: "/tmp/p", prompt: "fix the auth bug\nin middleware"
+            )
+        )
+        store.apply(env, at: t0)
+        XCTAssertEqual(store.sessions["s1"]?.status, .running)
+        XCTAssertEqual(store.sessions["s1"]?.task, "fix the auth bug in middleware")
+    }
+
     func testOrderedByRecency() {
         var store = SessionStore()
         store.apply(envelope("SessionStart", session: "old"), at: t0)

@@ -274,19 +274,9 @@ struct SessionListView: View {
                     }
                 }
                 // Working agents = Rocky snacking on tokens; quiet = patrol.
-                if hub.sessions.contains(where: { $0.status == .running }) {
-                    HStack {
-                        Spacer()
-                        RockyAnimatedSprite(prefix: "eat", fallback: "south", fps: 8, size: 24)
-                            .pokeable()
-                        Spacer()
-                    }
+                BottomRocky(anyRunning: hub.sessions.contains { $0.status == .running })
+                    .padding(.horizontal, 8)
                     .padding(.top, 2)
-                } else {
-                    WalkingRocky()
-                        .padding(.horizontal, 8)
-                        .padding(.top, 2)
-                }
             }
             Color.clear.frame(height: 8)
         }
@@ -354,11 +344,53 @@ extension View {
     }
 }
 
+/// The bottom-strip Rocky: patrols when idle, snacks on a token crystal
+/// while agents work, and sprints back and forth for a bit when poked.
+struct BottomRocky: View {
+    let anyRunning: Bool
+    @State private var runBurstUntil: Date?
+
+    private var bursting: Bool {
+        if let until = runBurstUntil { return until > Date() }
+        return false
+    }
+
+    var body: some View {
+        Group {
+            if bursting {
+                WalkingRocky(size: 24, speed: 110, fps: 14)
+            } else if anyRunning {
+                HStack {
+                    Spacer()
+                    RockyAnimatedSprite(prefix: "eat", fallback: "south", fps: 8, size: 24)
+                        .onTapGesture { burst() }
+                    Spacer()
+                }
+            } else {
+                WalkingRocky()
+            }
+        }
+        .frame(height: 24)
+    }
+
+    private func burst() {
+        RockyVoice.shared.poke()
+        runBurstUntil = Date().addingTimeInterval(2.8)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.85) {
+            if let until = runBurstUntil, until <= Date() {
+                runBurstUntil = nil
+            }
+        }
+    }
+}
+
 /// Rocky pacing back and forth under the session list, keeping watch.
 struct WalkingRocky: View {
     var size: CGFloat = 22
     /// Points per second of patrol speed.
     var speed: Double = 26
+    /// Step animation rate; higher when sprinting.
+    var fps: Double = 10
 
     private static var frames: [NSImage] = (0..<16).compactMap { index in
         guard let url = Bundle.main.url(
@@ -386,7 +418,7 @@ struct WalkingRocky: View {
                     if Self.frames.isEmpty {
                         RockySprite(state: "east", fallback: "south", size: size)
                     } else {
-                        let frame = Int(t * 10) % Self.frames.count
+                        let frame = Int(t * fps) % Self.frames.count
                         Image(nsImage: Self.frames[frame])
                             .interpolation(.none)
                             .resizable()
@@ -494,6 +526,11 @@ struct SessionRow: View {
                         .foregroundStyle(Palette.amber)
                 } else if let action = session.lastAction {
                     ActionTicker(action: action)
+                } else if let task = session.task {
+                    Text("You: \(task)")
+                        .font(.system(size: 10))
+                        .foregroundStyle(Palette.inkTertiary)
+                        .lineLimit(1)
                 }
             }
             Spacer(minLength: 8)
@@ -547,6 +584,12 @@ struct PendingSessionCard: View {
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(Palette.ink)
                             .lineLimit(1)
+                        if let task = session.task {
+                            Text("You: \(task)")
+                                .font(.system(size: 10))
+                                .foregroundStyle(Palette.inkSecondary)
+                                .lineLimit(1)
+                        }
                         Text("Rocky asks: \(pending.toolName)?")
                             .font(.system(size: 10.5))
                             .foregroundStyle(Palette.amber)

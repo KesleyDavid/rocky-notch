@@ -60,10 +60,7 @@ public enum TranscriptTail {
                   let name = block["name"] as? String
             else { continue }
             let input = block["input"] as? [String: Any]
-            let detail = (input?["command"] as? String)
-                ?? (input?["file_path"] as? String)
-                ?? (input?["url"] as? String)
-            return snippet(detail.map { "\(name): \($0)" } ?? name)
+            return snippet(friendly(tool: name, input: input))
         }
         for block in content.reversed() {
             guard block["type"] as? String == "text",
@@ -73,6 +70,40 @@ public enum TranscriptTail {
             return snippet(text)
         }
         return nil
+    }
+
+    /// "editing auth.ts" beats "Edit: /very/long/path/auth.ts" at a glance.
+    static func friendly(tool: String, input: [String: Any]?) -> String {
+        func base(_ key: String) -> String? {
+            (input?[key] as? String).map { ($0 as NSString).lastPathComponent }
+        }
+        switch tool {
+        case "Bash":
+            if let command = input?["command"] as? String {
+                return "running \(command)"
+            }
+            return "running a command"
+        case "Edit", "MultiEdit", "NotebookEdit":
+            return base("file_path").map { "editing \($0)" } ?? "editing a file"
+        case "Write":
+            return base("file_path").map { "writing \($0)" } ?? "writing a file"
+        case "Read":
+            return base("file_path").map { "reading \($0)" } ?? "reading a file"
+        case "Grep", "Glob":
+            return "searching the codebase"
+        case "WebFetch", "WebSearch":
+            if let url = input?["url"] as? String,
+               let host = URL(string: url)?.host {
+                return "browsing \(host)"
+            }
+            return "browsing the web"
+        case "Task", "Agent":
+            return "delegating to a subagent"
+        case "TodoWrite", "TaskCreate", "TaskUpdate":
+            return "planning tasks"
+        default:
+            return "using \(tool)"
+        }
     }
 
     private static func snippet(_ text: String) -> String {

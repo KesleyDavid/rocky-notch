@@ -60,13 +60,16 @@ struct AgentIntegration {
         ClaudeSettingsMerger.isInstalled(settings: try? Data(contentsOf: configURL))
     }
 
-    /// True when installed but pointing at a stale binary path (app moved).
+    /// True when installed but stale: moved bundle or missing newly added
+    /// hook events. Re-merging is idempotent and self-heals both.
     var needsReinstall: Bool {
-        guard isInstalled,
-              let data = try? Data(contentsOf: configURL),
-              let text = String(data: data, encoding: .utf8)
-        else { return false }
-        return !text.contains(Self.hookBinaryPath)
+        guard isInstalled else { return false }
+        let data = try? Data(contentsOf: configURL)
+        return !ClaudeSettingsMerger.isCurrent(
+            settings: data,
+            hookBinaryPath: Self.hookBinaryPath,
+            events: events
+        )
     }
 
     func install() throws {

@@ -50,6 +50,8 @@ public struct AgentSession: Identifiable, Equatable, Sendable {
     public var tokens: Int = 0
     /// Accumulated "working" time: event gaps capped at 5 minutes.
     public var activeSeconds: TimeInterval = 0
+    /// What the user asked for (latest prompt, truncated).
+    public var task: String?
 
     public var projectName: String {
         if let title, !title.isEmpty { return title }
@@ -118,6 +120,10 @@ public struct SessionStore: Equatable, Sendable {
             session.model = event.model ?? session.model
         case .userPromptSubmit:
             session.status = .running
+            if let prompt = event.prompt {
+                let flat = prompt.replacingOccurrences(of: "\n", with: " ")
+                session.task = flat.count > 100 ? String(flat.prefix(99)) + "…" : flat
+            }
         case .permissionRequest:
             session.status = .waitingPermission
             session.pending = PendingPermission(

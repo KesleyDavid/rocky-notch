@@ -23,6 +23,7 @@ public enum ClaudeSettingsMerger {
     public static let claudeEvents: [(name: String, needsReply: Bool)] = [
         ("SessionStart", false),
         ("SessionEnd", false),
+        ("UserPromptSubmit", false),
         ("Stop", false),
         ("Notification", false),
         ("PermissionRequest", true),
@@ -82,6 +83,28 @@ public enum ClaudeSettingsMerger {
         }
         root["hooks"] = hooks.isEmpty ? nil : hooks
         return try serialize(root)
+    }
+
+    /// True when every expected event has our hook pointing at this binary.
+    /// False means the installed config predates the current app (missing
+    /// event or moved bundle) and should be re-merged.
+    public static func isCurrent(
+        settings data: Data?,
+        hookBinaryPath: String,
+        events: [(name: String, needsReply: Bool)]
+    ) -> Bool {
+        guard let root = try? parse(data),
+              let hooks = root["hooks"] as? [String: Any] else { return false }
+        for (event, _) in events {
+            guard let groups = hooks[event] as? [[String: Any]],
+                  groups.contains(where: { group in
+                      (group["hooks"] as? [[String: Any]])?.contains {
+                          ($0["command"] as? String)?.contains(hookBinaryPath) == true
+                      } == true
+                  })
+            else { return false }
+        }
+        return true
     }
 
     public static func isInstalled(settings data: Data?) -> Bool {

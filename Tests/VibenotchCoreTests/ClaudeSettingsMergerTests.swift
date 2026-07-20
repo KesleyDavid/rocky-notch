@@ -12,7 +12,7 @@ final class ClaudeSettingsMergerTests: XCTestCase {
         let out = try ClaudeSettingsMerger.merge(settings: nil, hookBinaryPath: binary)
         let root = try parse(out)
         let hooks = try XCTUnwrap(root["hooks"] as? [String: Any])
-        for event in ["SessionStart", "SessionEnd", "Stop", "Notification", "PermissionRequest"] {
+        for event in ["SessionStart", "SessionEnd", "UserPromptSubmit", "Stop", "Notification", "PermissionRequest"] {
             let groups = try XCTUnwrap(hooks[event] as? [[String: Any]], event)
             XCTAssertEqual(groups.count, 1, event)
         }
@@ -87,6 +87,25 @@ final class ClaudeSettingsMergerTests: XCTestCase {
         let hook = try XCTUnwrap((pr["hooks"] as? [[String: Any]])?.first)
         XCTAssertEqual(hook["command"] as? String, "\(binary) --agent codex")
         XCTAssertTrue(ClaudeSettingsMerger.isInstalled(settings: out))
+    }
+
+    func testIsCurrentDetectsMissingEventOrStalePath() throws {
+        let out = try ClaudeSettingsMerger.merge(settings: nil, hookBinaryPath: binary)
+        XCTAssertTrue(ClaudeSettingsMerger.isCurrent(
+            settings: out, hookBinaryPath: binary, events: ClaudeSettingsMerger.claudeEvents
+        ))
+        XCTAssertFalse(ClaudeSettingsMerger.isCurrent(
+            settings: out, hookBinaryPath: "/moved/vibenotch-hook",
+            events: ClaudeSettingsMerger.claudeEvents
+        ))
+        // Config antiga sem UserPromptSubmit não é current.
+        let old = try ClaudeSettingsMerger.merge(
+            settings: nil, hookBinaryPath: binary,
+            events: [("Stop", false), ("PermissionRequest", true)]
+        )
+        XCTAssertFalse(ClaudeSettingsMerger.isCurrent(
+            settings: old, hookBinaryPath: binary, events: ClaudeSettingsMerger.claudeEvents
+        ))
     }
 
     func testInvalidJSONThrows() {

@@ -11,14 +11,14 @@ final class TranscriptTailTests: XCTestCase {
             #"{"type":"user","message":{"content":"oi"}}"#,
             #"{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"npm test"}}]}}"#
         )
-        XCTAssertEqual(TranscriptTail.lastAction(in: data), "Bash: npm test")
+        XCTAssertEqual(TranscriptTail.lastAction(in: data), "running npm test")
     }
 
     func testExtractsFilePathForEdit() {
         let data = chunk(
             #"{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Edit","input":{"file_path":"/a/b.swift"}}]}}"#
         )
-        XCTAssertEqual(TranscriptTail.lastAction(in: data), "Edit: /a/b.swift")
+        XCTAssertEqual(TranscriptTail.lastAction(in: data), "editing b.swift")
     }
 
     func testFallsBackToTextSnippet() {
@@ -36,7 +36,7 @@ final class TranscriptTailTests: XCTestCase {
             #"{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"old"}}]}}"#,
             #"{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"new"}}]}}"#
         )
-        XCTAssertEqual(TranscriptTail.lastAction(in: data), "Bash: new")
+        XCTAssertEqual(TranscriptTail.lastAction(in: data), "running new")
     }
 
     func testMalformedAndForeignLinesSkipped() {
@@ -45,7 +45,7 @@ final class TranscriptTailTests: XCTestCase {
             "not json at all",
             #"{"type":"summary","whatever":1}"#
         )
-        XCTAssertEqual(TranscriptTail.lastAction(in: data), "Read: /x")
+        XCTAssertEqual(TranscriptTail.lastAction(in: data), "reading x")
     }
 
     func testLongTextTruncated() throws {
@@ -70,6 +70,6 @@ final class TranscriptTailTests: XCTestCase {
         )
         let update = TranscriptTail.scan(data)
         XCTAssertEqual(update.tokens, 195)
-        XCTAssertEqual(update.lastAction, "Bash: ls")
+        XCTAssertEqual(update.lastAction, "running ls")
     }
 }

@@ -43,6 +43,8 @@ public struct HookEvent: Codable, Equatable, Sendable {
     public let sessionTitle: String?
     /// Stop
     public let lastAssistantMessage: String?
+    /// UserPromptSubmit
+    public let prompt: String?
     /// Subagent events carry an agent id; we only track top-level sessions.
     public let agentId: String?
 
@@ -62,6 +64,7 @@ public struct HookEvent: Codable, Equatable, Sendable {
         case model
         case sessionTitle = "session_title"
         case lastAssistantMessage = "last_assistant_message"
+        case prompt
         case agentId = "agent_id"
     }
 
@@ -80,6 +83,7 @@ public struct HookEvent: Codable, Equatable, Sendable {
         model = try c.decodeIfPresent(String.self, forKey: .model)
         sessionTitle = try c.decodeIfPresent(String.self, forKey: .sessionTitle)
         lastAssistantMessage = try c.decodeIfPresent(String.self, forKey: .lastAssistantMessage)
+        prompt = try c.decodeIfPresent(String.self, forKey: .prompt)
         agentId = try c.decodeIfPresent(String.self, forKey: .agentId)
     }
 
@@ -97,6 +101,7 @@ public struct HookEvent: Codable, Equatable, Sendable {
         model: String? = nil,
         sessionTitle: String? = nil,
         lastAssistantMessage: String? = nil,
+        prompt: String? = nil,
         agentId: String? = nil
     ) {
         self.sessionId = sessionId
@@ -112,6 +117,7 @@ public struct HookEvent: Codable, Equatable, Sendable {
         self.model = model
         self.sessionTitle = sessionTitle
         self.lastAssistantMessage = lastAssistantMessage
+        self.prompt = prompt
         self.agentId = agentId
     }
 
