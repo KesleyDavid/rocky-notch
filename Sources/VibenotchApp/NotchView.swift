@@ -71,7 +71,9 @@ struct NotchView: View {
             if state.expanded {
                 PixelPanel().stroke(Palette.hairline, lineWidth: 2)
             }
-            if hasPending {
+            // Border only when open: collapsed must fuse seamlessly with the
+            // physical notch (pure black, no outline).
+            if hasPending, state.expanded {
                 PixelPanel()
                     .stroke(Palette.amber.opacity(0.6), lineWidth: 2)
                     .breathing(period: 0.9)
