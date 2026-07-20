@@ -72,9 +72,22 @@ struct NotchView: View {
         )
         return ZStack {
             shape.fill(.black)
-            if state.expanded {
-                shape.strokeBorder(Palette.hairline, lineWidth: 1)
-            }
+            // Liquid-glass lip: a light rim that only exists on the lateral
+            // and bottom edges (clear at the top, so the fusion with the
+            // physical notch stays seamless) — reads as a glass edge
+            // catching light.
+            shape.strokeBorder(
+                LinearGradient(
+                    stops: [
+                        .init(color: .clear, location: 0),
+                        .init(color: .white.opacity(0.10), location: 0.55),
+                        .init(color: .white.opacity(state.expanded ? 0.32 : 0.26), location: 1),
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                ),
+                lineWidth: 1
+            )
         }
         .compositingGroup()
         .shadow(color: .black.opacity(state.expanded ? 0.5 : 0), radius: 16, y: 8)
