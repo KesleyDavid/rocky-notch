@@ -19,14 +19,16 @@ struct NotchView: View {
         sessionCount: Int,
         hasPending: Bool,
         notchWidth: CGFloat,
-        notchHeight: CGFloat
+        notchHeight: CGFloat,
+        pendingDiffLines: Int = 0
     ) -> CGSize {
         if !expanded {
             return CGSize(width: notchWidth + wingWidth * 2, height: notchHeight)
         }
+        let card = hasPending ? cardHeight + CGFloat(pendingDiffLines) * 21 : 26
         let rows = sessionCount == 0
             ? rowHeight + 84
-            : CGFloat(sessionCount) * rowHeight + (hasPending ? cardHeight : 26) + 20
+            : CGFloat(sessionCount) * rowHeight + card + 20
         let height = notchHeight + rows + 18
         return CGSize(
             width: max(expandedWidth, notchWidth + wingWidth * 2),
@@ -318,18 +320,22 @@ struct PendingSessionCard: View {
                         Chip(text: terminal)
                     }
                 }
-                Text(pending.summary)
-                    .font(.system(size: 11.5, design: .monospaced))
-                    .foregroundStyle(Palette.ink)
-                    .lineLimit(2)
-                    .truncationMode(.middle)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 6)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(
-                        RoundedRectangle(cornerRadius: 7, style: .continuous)
-                            .fill(Color.black.opacity(0.5))
-                    )
+                if let diff = EditDiff.from(toolName: pending.toolName, input: pending.toolInput) {
+                    DiffPreview(diff: diff)
+                } else {
+                    Text(pending.summary)
+                        .font(.system(size: 11.5, design: .monospaced))
+                        .foregroundStyle(Palette.ink)
+                        .lineLimit(2)
+                        .truncationMode(.middle)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 6)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                .fill(Color.black.opacity(0.5))
+                        )
+                }
                 HStack(spacing: 7) {
                     ActionButton(title: "Aprovar", style: .fill(Palette.green)) {
                         hub.decide(requestId: pending.requestId, decision: .allow)
@@ -355,6 +361,65 @@ struct PendingSessionCard: View {
             )
             .padding(.vertical, 3)
         )
+    }
+}
+
+/// Vibe-Island-style diff block: context dim, − red, + green, count footer.
+struct DiffPreview: View {
+    let diff: EditDiff
+    static let maxLines = 5
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(diff.lines.prefix(Self.maxLines).enumerated()), id: \.offset) { _, line in
+                diffRow(line)
+            }
+            HStack(spacing: 6) {
+                if diff.additions > 0 {
+                    Text("+\(diff.additions)").foregroundStyle(Palette.green)
+                }
+                if diff.removals > 0 {
+                    Text("−\(diff.removals)").foregroundStyle(Palette.red)
+                }
+                if diff.lines.count > Self.maxLines {
+                    Text("· \(diff.lines.count - Self.maxLines) linhas ocultas")
+                        .foregroundStyle(Palette.inkTertiary)
+                }
+            }
+            .font(.system(size: 9.5, weight: .medium, design: .monospaced))
+            .padding(.horizontal, 9)
+            .padding(.vertical, 5)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(Color.black.opacity(0.5))
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+    }
+
+    @ViewBuilder
+    private func diffRow(_ line: EditDiff.Line) -> some View {
+        let (prefix, text, color, background): (String, String, Color, Color) = {
+            switch line {
+            case .context(let t): (" ", t, Palette.inkTertiary, .clear)
+            case .removed(let t): ("−", t, Palette.red, Palette.red.opacity(0.10))
+            case .added(let t): ("+", t, Palette.green, Palette.green.opacity(0.10))
+            }
+        }()
+        HStack(spacing: 6) {
+            Text(prefix)
+                .foregroundStyle(color)
+            Text(text)
+                .foregroundStyle(color == Palette.inkTertiary ? Palette.inkTertiary : Palette.ink)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            Spacer(minLength: 0)
+        }
+        .font(.system(size: 10.5, design: .monospaced))
+        .padding(.horizontal, 9)
+        .padding(.vertical, 2.5)
+        .background(background)
     }
 }
 

@@ -5,12 +5,21 @@ public struct PendingPermission: Equatable, Sendable {
     public let toolName: String
     public let summary: String
     public let receivedAt: Date
+    /// Raw tool input — the UI derives richer previews (e.g. Edit diffs).
+    public let toolInput: JSONValue?
 
-    public init(requestId: String, toolName: String, summary: String, receivedAt: Date) {
+    public init(
+        requestId: String,
+        toolName: String,
+        summary: String,
+        receivedAt: Date,
+        toolInput: JSONValue? = nil
+    ) {
         self.requestId = requestId
         self.toolName = toolName
         self.summary = summary
         self.receivedAt = receivedAt
+        self.toolInput = toolInput
     }
 }
 
@@ -115,7 +124,8 @@ public struct SessionStore: Equatable, Sendable {
                 requestId: envelope.requestId,
                 toolName: event.toolName ?? "ferramenta",
                 summary: event.toolSummary ?? event.toolName ?? "",
-                receivedAt: date
+                receivedAt: date,
+                toolInput: event.toolInput
             )
         case .notification:
             // permission_prompt is redundant with PermissionRequest; the rest
