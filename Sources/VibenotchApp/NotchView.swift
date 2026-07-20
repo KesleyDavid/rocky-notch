@@ -235,9 +235,7 @@ struct SessionListView: View {
             if !hub.sessions.isEmpty,
                SessionMeta.tokens(totalTokens) != nil || SessionMeta.workTime(totalWork) != nil {
                 HStack(spacing: 5) {
-                    Image(systemName: "sparkle")
-                        .font(.system(size: 8))
-                        .foregroundStyle(Palette.amber)
+                    TokenIcon(size: 11)
                     if let tokens = SessionMeta.tokens(totalTokens) {
                         Text(tokens).foregroundStyle(Palette.green)
                     }
@@ -275,11 +273,48 @@ struct SessionListView: View {
                         .transition(.opacity.combined(with: .move(edge: .top)))
                     }
                 }
-                WalkingRocky()
-                    .padding(.horizontal, 8)
+                // Working agents = Rocky snacking on tokens; quiet = patrol.
+                if hub.sessions.contains(where: { $0.status == .running }) {
+                    HStack {
+                        Spacer()
+                        RockyAnimatedSprite(prefix: "eat", fallback: "south", fps: 8, size: 24)
+                            .pokeable()
+                        Spacer()
+                    }
                     .padding(.top, 2)
+                } else {
+                    WalkingRocky()
+                        .padding(.horizontal, 8)
+                        .padding(.top, 2)
+                }
             }
             Color.clear.frame(height: 8)
+        }
+    }
+}
+
+/// The token crystal: Rocky's food, and the icon for token counters.
+struct TokenIcon: View {
+    let size: CGFloat
+
+    private static let image: NSImage? = {
+        guard let url = Bundle.main.url(
+            forResource: "token", withExtension: "png", subdirectory: "Art"
+        ) else { return nil }
+        return NSImage(contentsOf: url)
+    }()
+
+    var body: some View {
+        if let image = Self.image {
+            Image(nsImage: image)
+                .interpolation(.none)
+                .resizable()
+                .scaledToFit()
+                .frame(width: size, height: size)
+        } else {
+            Image(systemName: "sparkle")
+                .font(.system(size: size * 0.8))
+                .foregroundStyle(Palette.green)
         }
     }
 }
