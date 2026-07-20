@@ -264,8 +264,7 @@ struct SessionRow: View {
             }
             Spacer(minLength: 8)
             if session.status == .running {
-                EqualizerBars(tint: Palette.green)
-                    .frame(width: 14, height: 9)
+                RockyAnimatedSprite(size: 18)
             }
             if let tokens = SessionMeta.tokens(session.tokens) {
                 Chip(text: tokens)
