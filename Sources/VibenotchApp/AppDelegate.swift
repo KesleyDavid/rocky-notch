@@ -38,7 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func setUpStatusItem() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        item.button?.image = Self.menuBarIcon(alert: false)
+        item.button?.image = Self.menuBarIcon()
         let menu = NSMenu()
         menu.delegate = self
         item.menu = menu
@@ -54,22 +54,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let needsAttention = hub.sessions.contains {
             $0.status == .waitingPermission || $0.status == .waitingInput
         }
-        statusItem?.button?.image = Self.menuBarIcon(alert: needsAttention)
+        statusItem?.button?.image = Self.menuBarIcon()
+        // Template icon: the system tints it; amber = "Rocky needs you".
+        statusItem?.button?.contentTintColor = needsAttention ? .systemOrange : nil
     }
 
-    /// Rocky as the menu bar icon: pixel art, full color (not template),
-    /// alert variant while something waits for the user.
-    private static func menuBarIcon(alert: Bool) -> NSImage? {
+    /// Rocky silhouette as a template menu bar icon — monochrome like every
+    /// other status item, tinted amber while something waits for the user.
+    private static func menuBarIcon() -> NSImage? {
         // The @2x bitmap (36px) shown at 18pt maps 1:1 to device pixels on
         // retina — crisp pixel art.
-        let name = alert ? "menubar-alert@2x" : "menubar@2x"
         guard let url = Bundle.main.url(
-            forResource: name, withExtension: "png", subdirectory: "Art"
+            forResource: "menubar-mono@2x", withExtension: "png", subdirectory: "Art"
         ), let image = NSImage(contentsOf: url) else {
-            return NSImage(systemSymbolName: "waveform.circle", accessibilityDescription: "vibenotch")
+            return NSImage(systemSymbolName: "waveform.circle", accessibilityDescription: "Rocky")
         }
         image.size = NSSize(width: 18, height: 18)
-        image.isTemplate = false
+        image.isTemplate = true
         return image
     }
 
@@ -99,7 +100,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         menu.addItem(.separator())
         menu.addItem(
-            withTitle: "Quit vibenotch",
+            withTitle: "Quit Rocky",
             action: #selector(NSApplication.terminate(_:)),
             keyEquivalent: "q"
         )
@@ -115,9 +116,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 let alert = NSAlert()
                 alert.messageText = "Instalar integração com o \(integration.displayName)?"
                 alert.informativeText = """
-                O vibenotch vai adicionar hooks a \(integration.configURL.path) \
+                O Rocky vai adicionar hooks a \(integration.configURL.path) \
                 (um backup .vibenotch-bak é criado). Sessões novas passam a \
-                aparecer no notch, com aprovação de permissões. Se o vibenotch \
+                aparecer no notch, com aprovação de permissões. Se o Rocky \
                 não estiver rodando, nada muda no seu fluxo.
                 """
                 alert.addButton(withTitle: "Instalar")
@@ -133,7 +134,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func presentError(_ error: Error) {
         let alert = NSAlert()
-        alert.messageText = "vibenotch"
+        alert.messageText = "Rocky"
         alert.informativeText = error.localizedDescription
         NSApp.activate()
         alert.runModal()

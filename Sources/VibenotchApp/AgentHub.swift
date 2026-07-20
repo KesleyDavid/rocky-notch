@@ -46,7 +46,7 @@ final class AgentHub: ObservableObject {
         do {
             try server.start()
         } catch IPCServer.StartError.anotherInstanceRunning {
-            serverError = "outra instância do vibenotch já está rodando"
+            serverError = "outra instância do Rocky já está rodando"
             NSApp.terminate(nil)
         } catch {
             serverError = "falha ao iniciar IPC: \(error)"

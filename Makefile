@@ -1,6 +1,6 @@
 CONFIG ?= release
 BUILD_DIR := .build/$(CONFIG)
-APP := dist/Vibenotch.app
+APP := dist/Rocky.app
 
 .PHONY: build test app run clean
 
@@ -15,7 +15,7 @@ app: build
 	mkdir -p $(APP)/Contents/MacOS $(APP)/Contents/Resources
 	cp Support/Info.plist $(APP)/Contents/Info.plist
 	printf 'APPL????' > $(APP)/Contents/PkgInfo
-	cp $(BUILD_DIR)/Vibenotch $(APP)/Contents/MacOS/Vibenotch
+	cp $(BUILD_DIR)/Rocky $(APP)/Contents/MacOS/Rocky
 	cp $(BUILD_DIR)/vibenotch-hook $(APP)/Contents/MacOS/vibenotch-hook
 	mkdir -p $(APP)/Contents/Resources/Sounds $(APP)/Contents/Resources/Art $(APP)/Contents/Resources/Fonts
 	cp Support/Sounds/*.mp3 $(APP)/Contents/Resources/Sounds/

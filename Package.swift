@@ -5,7 +5,7 @@ let package = Package(
     name: "vibenotch",
     platforms: [.macOS(.v14)],
     products: [
-        .executable(name: "Vibenotch", targets: ["VibenotchApp"]),
+        .executable(name: "Rocky", targets: ["VibenotchApp"]),
         .executable(name: "vibenotch-hook", targets: ["VibenotchHook"]),
         .library(name: "VibenotchCore", targets: ["VibenotchCore"]),
     ],

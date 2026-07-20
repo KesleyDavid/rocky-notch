@@ -5,13 +5,13 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleExecutable</key>
-	<string>Vibenotch</string>
+	<string>Rocky</string>
 	<key>CFBundleIdentifier</key>
-	<string>app.vibenotch.Vibenotch</string>
+	<string>app.vibenotch.rocky</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>Vibenotch</string>
+	<string>Rocky</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

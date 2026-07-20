@@ -13,9 +13,9 @@ check() { # name expected actual
 
 swift build -c release >/dev/null 2>&1 || { echo "build falhou"; exit 1; }
 HOOK=.build/release/vibenotch-hook
-APP=.build/release/Vibenotch
+APP=.build/release/Rocky
 
-pkill -x Vibenotch 2>/dev/null; sleep 0.5
+pkill -x Rocky; pkill -x Vibenotch 2>/dev/null; sleep 0.5
 
 PR_EVENT='{"session_id":"it","hook_event_name":"PermissionRequest","tool_name":"Bash","tool_input":{"command":"true"}}'
 
