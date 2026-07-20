@@ -356,6 +356,25 @@ struct BottomRocky: View {
     private static let reactDuration = 0.7
     private static let sprintDuration = 2.8
 
+    /// Rocky's inner monologue while the agents work. Rotates with his mood.
+    private static let musings = [
+        "Rocky thinks...",
+        "Rocky watches the agents...",
+        "Rocky likes rocks",
+        "Rocky counts tokens...",
+        "Rocky smells good code",
+        "Rocky vibes...",
+        "Rocky says: amaze!",
+        "Rocky asks: question?",
+        "Rocky chews a crystal...",
+        "Rocky hums in chords...",
+        "Rocky guards the notch...",
+        "Rocky dreams of astrophage...",
+        "Rocky waits, like a rock",
+        "Rocky read that somewhere",
+        "Rocky trusts, but verifies",
+    ]
+
     var body: some View {
         TimelineView(.periodic(from: .now, by: 0.25)) { timeline in
             let now = timeline.date
@@ -369,9 +388,12 @@ struct BottomRocky: View {
                 } else if let until = runBurstUntil, until > now {
                     WalkingRocky(size: 24, speed: 110, fps: 14)
                 } else if anyRunning {
-                    // Alternate moods every 9s: think, then snack.
-                    let thinking = Int(now.timeIntervalSinceReferenceDate / 9) % 2 == 0
-                    HStack {
+                    // Alternate moods every 9s: think, then snack. The musing
+                    // rotates on the same clock (prime stride ≈ shuffled).
+                    let slot = Int(now.timeIntervalSinceReferenceDate / 9)
+                    let thinking = slot % 2 == 0
+                    let musing = Self.musings[(slot * 7) % Self.musings.count]
+                    HStack(spacing: 8) {
                         Spacer()
                         RockyAnimatedSprite(
                             prefix: thinking ? "think" : "eat",
@@ -380,8 +402,14 @@ struct BottomRocky: View {
                             size: 24
                         )
                         .onTapGesture { startle() }
+                        Text(musing)
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(Palette.inkTertiary)
+                            .id(musing)
+                            .transition(.opacity)
                         Spacer()
                     }
+                    .animation(.easeInOut(duration: 0.4), value: musing)
                 } else {
                     WalkingRocky()
                 }
