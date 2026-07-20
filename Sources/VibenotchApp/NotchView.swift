@@ -103,12 +103,16 @@ struct NotchView: View {
             HStack(spacing: 9) {
                 if hasPending {
                     RockySprite(state: "rocky-alert", fallback: "south", size: 20)
+                } else if !hub.celebrating.isEmpty {
+                    RockySprite(state: "rocky-celebrating", fallback: "south", size: 22)
+                        .transition(.scale.combined(with: .opacity))
                 } else if anyRunning {
                     RockyAnimatedSprite(size: 20)
                 } else {
                     RockySprite(state: "rocky-sleeping", fallback: "south", size: 20)
                 }
             }
+            .animation(.spring(duration: 0.3, bounce: 0.5), value: hub.celebrating)
             .padding(.leading, 18)
             .padding(.bottom, 1)
             .frame(width: Self.wingWidth, alignment: .leading)
@@ -262,8 +266,11 @@ struct SessionListView: View {
                         PendingSessionCard(session: session, hub: hub)
                             .transition(.opacity.combined(with: .move(edge: .top)))
                     } else {
-                        SessionRow(session: session)
-                            .transition(.opacity.combined(with: .move(edge: .top)))
+                        SessionRow(
+                            session: session,
+                            celebrating: hub.celebrating.contains(session.id)
+                        )
+                        .transition(.opacity.combined(with: .move(edge: .top)))
                     }
                 }
             }
@@ -331,16 +338,22 @@ enum SessionMeta {
 /// Quiet row for sessions that don't need attention (dot + name + chips).
 struct SessionRow: View {
     let session: AgentSession
+    var celebrating = false
     @State private var hovering = false
 
     private var statusColor: Color { Palette.status(session.status) }
 
     var body: some View {
         HStack(spacing: 10) {
-            Circle()
-                .fill(statusColor)
-                .frame(width: 7, height: 7)
-                .shadow(color: statusColor.opacity(0.7), radius: 2)
+            if celebrating {
+                RockySprite(state: "rocky-celebrating", fallback: "south", size: 24)
+                    .transition(.scale.combined(with: .opacity))
+            } else {
+                Circle()
+                    .fill(statusColor)
+                    .frame(width: 7, height: 7)
+                    .shadow(color: statusColor.opacity(0.7), radius: 2)
+            }
             VStack(alignment: .leading, spacing: 1) {
                 Text(session.projectName)
                     .font(.system(size: 13, weight: .medium))
@@ -385,6 +398,7 @@ struct SessionRow: View {
             withAnimation(.easeOut(duration: 0.12)) { hovering = h }
         }
         .animation(.easeInOut(duration: 0.25), value: session.lastAction)
+        .animation(.spring(duration: 0.3, bounce: 0.5), value: celebrating)
     }
 }
 

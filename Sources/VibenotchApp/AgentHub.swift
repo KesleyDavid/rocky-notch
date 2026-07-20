@@ -8,6 +8,8 @@ import VibenotchCore
 final class AgentHub: ObservableObject {
     @Published private(set) var store = SessionStore()
     @Published private(set) var serverError: String?
+    /// Sessions that just finished a turn; Rocky celebrates them briefly.
+    @Published private(set) var celebrating: Set<String> = []
 
     /// Hook-side timeout is 60s; we always decide 5s earlier so the hook
     /// exits cleanly (passthrough) instead of being killed.
@@ -113,9 +115,18 @@ final class AgentHub: ObservableObject {
         case .stop:
             if let session = store.sessions[envelope.event.sessionId] {
                 onSessionIdle?(session)
+                celebrate(sessionId: session.id)
             }
         default:
             break
+        }
+    }
+
+    private func celebrate(sessionId: String) {
+        celebrating.insert(sessionId)
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(3.5))
+            self?.celebrating.remove(sessionId)
         }
     }
 
