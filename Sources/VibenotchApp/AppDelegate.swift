@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        registerPixelFont()
         hub.start()
         installAutoDecideForTesting()
         wireAlerts()
@@ -24,6 +25,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         hub.stop()
+    }
+
+    private func registerPixelFont() {
+        guard let url = Bundle.main.url(
+            forResource: "PressStart2P-Regular", withExtension: "ttf", subdirectory: "Fonts"
+        ) else { return }
+        CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
     }
 
     // MARK: - Status menu
