@@ -88,7 +88,7 @@ struct NotchView: View {
     /// Rocky lives on the left wing, mirroring the fleet's mood.
     private var collapsedContent: some View {
         HStack {
-            HStack(spacing: 5) {
+            HStack(spacing: 9) {
                 RockySprite(
                     state: hasPending
                         ? "rocky-alert"
@@ -101,8 +101,10 @@ struct NotchView: View {
                         .frame(width: 14, height: 10)
                 }
             }
-            .padding(.leading, 12)
+            .padding(.leading, 18)
+            .padding(.bottom, 1)
             .frame(width: Self.wingWidth, alignment: .leading)
+            .frame(maxHeight: .infinity, alignment: .center)
 
             Spacer()
 
