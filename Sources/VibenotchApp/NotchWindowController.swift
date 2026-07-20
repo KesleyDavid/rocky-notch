@@ -67,11 +67,20 @@ final class NotchWindowController {
     /// Expanding is immediate; collapsing is debounced and re-checked against
     /// the real mouse position, otherwise the frame change itself generates
     /// hover-exit events and the panel flickers.
+    ///
+    /// A new pending request auto-reveals the panel ONCE; after that the user
+    /// may collapse it (mouse away) and the card stays available on re-hover
+    /// for as long as the request lives.
     private var collapseTimer: Timer?
+    private var revealedRequests: Set<String> = []
 
     private func syncAndLayout() {
-        let hasPending = hub.sessions.contains { $0.pending != nil }
-        if hasPending || state.hovering {
+        let pendingIds = Set(hub.sessions.compactMap { $0.pending?.requestId })
+        revealedRequests.formIntersection(pendingIds)
+        let hasNewPending = !pendingIds.subtracting(revealedRequests).isEmpty
+
+        if hasNewPending || state.hovering {
+            revealedRequests.formUnion(pendingIds)
             collapseTimer?.invalidate()
             collapseTimer = nil
             if !state.expanded { state.expanded = true }
@@ -87,10 +96,9 @@ final class NotchWindowController {
                 guard let self else { return }
                 self.collapseTimer = nil
                 let mouseInside = NSPointInRect(NSEvent.mouseLocation, self.panel.frame)
-                let hasPending = self.hub.sessions.contains { $0.pending != nil }
-                if !mouseInside, !hasPending {
+                if !mouseInside {
                     self.state.expanded = false
-                } else if mouseInside {
+                } else {
                     // Hover events got lost during the resize; resync.
                     self.state.hovering = true
                 }
@@ -131,7 +139,13 @@ final class NotchWindowController {
             x: screen.frame.midX - size.width / 2,
             y: screen.frame.maxY - size.height
         )
-        panel.setFrame(CGRect(origin: origin, size: size), display: true)
+        let frame = CGRect(origin: origin, size: size)
+        guard frame != panel.frame else { return }
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.28
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            panel.animator().setFrame(frame, display: true)
+        }
     }
 
     /// Expand when a permission arrives so it's visible without hover.

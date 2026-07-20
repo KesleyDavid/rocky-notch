@@ -30,7 +30,9 @@ final class AgentHub: ObservableObject {
             self?.handle(envelope)
         }
         server.onPendingDropped = { [weak self] requestId in
-            self?.finishPending(requestId: requestId)
+            // Connection died without a decision: the agent CLI took over
+            // (cancelled or prompting at the terminal).
+            self?.finishPending(requestId: requestId, fellBackToTerminal: true)
         }
         transcripts.onAction = { [weak self] sessionId, action in
             self?.store.setLastAction(action, sessionId: sessionId)
@@ -64,7 +66,10 @@ final class AgentHub: ObservableObject {
     /// User action from the notch card (or timeout → .passthrough).
     func decide(requestId: String, decision: Decision) {
         server.reply(decision, to: requestId)
-        finishPending(requestId: requestId)
+        finishPending(
+            requestId: requestId,
+            fellBackToTerminal: decision == .ask || decision == .passthrough
+        )
     }
 
     /// Resolves the hook's GUI ancestor; injectable for tests.
@@ -113,9 +118,13 @@ final class AgentHub: ObservableObject {
         }
     }
 
-    private func finishPending(requestId: String) {
+    private func finishPending(requestId: String, fellBackToTerminal: Bool = false) {
         timeoutTasks[requestId]?.cancel()
         timeoutTasks[requestId] = nil
-        store.resolvePending(requestId: requestId, at: Date())
+        store.resolvePending(
+            requestId: requestId,
+            at: Date(),
+            fellBackToTerminal: fellBackToTerminal
+        )
     }
 }

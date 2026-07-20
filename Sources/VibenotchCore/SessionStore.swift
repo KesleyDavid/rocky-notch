@@ -135,11 +135,17 @@ public struct SessionStore: Equatable, Sendable {
     }
 
     /// Called when a pending request was answered or timed out.
-    public mutating func resolvePending(requestId: String, at date: Date) {
+    /// `fellBackToTerminal` (ask/timeout/dropped): the agent is now waiting
+    /// for the user at the terminal prompt, not running.
+    public mutating func resolvePending(
+        requestId: String,
+        at date: Date,
+        fellBackToTerminal: Bool = false
+    ) {
         for (id, var session) in sessions where session.pending?.requestId == requestId {
             session.pending = nil
             if session.status == .waitingPermission {
-                session.status = .running
+                session.status = fellBackToTerminal ? .waitingInput : .running
             }
             session.lastEventAt = date
             sessions[id] = session

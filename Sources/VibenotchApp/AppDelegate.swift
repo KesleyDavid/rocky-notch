@@ -1,9 +1,11 @@
 import AppKit
+import Combine
 import VibenotchCore
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem?
+    private var iconObservation: AnyCancellable?
     private var notchController: NotchWindowController?
     private let integrations: [AgentIntegration] = [.claudeCode, .codex]
     let hub = AgentHub()
@@ -36,6 +38,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.delegate = self
         item.menu = menu
         statusItem = item
+
+        // Icon mirrors the fleet: normal → idle, filled+orange → needs you.
+        iconObservation = hub.$store
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.refreshStatusIcon() }
+    }
+
+    private func refreshStatusIcon() {
+        let needsAttention = hub.sessions.contains {
+            $0.status == .waitingPermission || $0.status == .waitingInput
+        }
+        let name = needsAttention ? "waveform.circle.fill" : "waveform.circle"
+        let image = NSImage(systemSymbolName: name, accessibilityDescription: "vibenotch")
+        if needsAttention {
+            statusItem?.button?.contentTintColor = .systemOrange
+        } else {
+            statusItem?.button?.contentTintColor = nil
+        }
+        statusItem?.button?.image = image
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
