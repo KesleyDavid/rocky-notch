@@ -24,7 +24,7 @@ struct NotchView: View {
             return CGSize(width: notchWidth + wingWidth * 2, height: notchHeight)
         }
         let rows = sessionCount == 0
-            ? rowHeight + 52
+            ? rowHeight + 72
             : CGFloat(sessionCount) * rowHeight
         let card: CGFloat = hasPending ? cardHeight : 0
         let height = notchHeight + rows + card + 22
@@ -94,7 +94,7 @@ struct NotchView: View {
                         ? "rocky-alert"
                         : anyRunning ? "south" : "rocky-sleeping",
                     fallback: "south",
-                    size: 24
+                    size: 28
                 )
                 .breathing(period: hasPending ? 0.8 : 3.5)
                 if anyRunning {
@@ -134,7 +134,7 @@ struct NotchView: View {
             Color.clear.frame(height: 12)
             if hub.sessions.isEmpty {
                 VStack(spacing: 8) {
-                    RockySprite(state: "rocky-sleeping", fallback: "south", size: 52)
+                    RockySprite(state: "rocky-sleeping", fallback: "south", size: 76)
                         .breathing(period: 3.5)
                     PixelText("zzz... rocky de plantao", size: 7, color: Palette.inkTertiary)
                 }
@@ -336,7 +336,7 @@ struct SessionRow: View {
                         ? "rocky-alert"
                         : session.status == .idle ? "rocky-sleeping" : "south",
                     fallback: "south",
-                    size: 20
+                    size: 30
                 )
                 .breathing(period: session.pending != nil ? 0.8 : 4)
 
@@ -422,7 +422,7 @@ struct PermissionCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
             HStack(spacing: 8) {
-                RockySprite(state: "rocky-alert", fallback: "south", size: 22)
+                RockySprite(state: "rocky-alert", fallback: "south", size: 34)
                     .breathing(period: 1.0)
                 PixelText(pending.toolName, size: 8, color: Palette.amber)
                 Spacer()
