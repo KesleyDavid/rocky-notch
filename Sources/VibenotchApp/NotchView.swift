@@ -94,7 +94,7 @@ struct NotchView: View {
                         ? "rocky-alert"
                         : anyRunning ? "south" : "rocky-sleeping",
                     fallback: "south",
-                    size: 28
+                    size: 20
                 )
                 .breathing(period: hasPending ? 0.8 : 3.5)
                 if anyRunning {
