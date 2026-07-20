@@ -3,9 +3,11 @@ name: Release
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: "Version (e.g. 0.1.1)"
-        required: true
+      bump:
+        description: "Version bump"
+        type: choice
+        default: patch
+        options: [patch, minor, major]
 
 permissions:
   contents: write
@@ -18,14 +20,24 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Compute build number
-        id: build
-        run: echo "number=$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Compute version and build number
+        id: v
+        run: |
+          echo "build=$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
+          latest=$(git tag -l 'v*' --sort=-v:refname | head -1)
+          latest=${latest:-v0.1.0}
+          IFS=. read -r major minor patch <<< "${latest#v}"
+          case "${{ inputs.bump }}" in
+            major) major=$((major+1)); minor=0; patch=0 ;;
+            minor) minor=$((minor+1)); patch=0 ;;
+            *)     patch=$((patch+1)) ;;
+          esac
+          echo "version=$major.$minor.$patch" >> "$GITHUB_OUTPUT"
 
       - name: Stamp version and build number
         run: |
-          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${{ inputs.version }}" Support/Info.plist
-          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ steps.build.outputs.number }}" Support/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${{ steps.v.outputs.version }}" Support/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ steps.v.outputs.build }}" Support/Info.plist
 
       - name: Tests
         run: swift test
@@ -34,7 +46,7 @@ jobs:
         run: make app
 
       - name: Package
-        run: ditto -c -k --keepParent dist/Rocky.app "dist/Rocky-${{ inputs.version }}.zip"
+        run: ditto -c -k --keepParent dist/Rocky.app "dist/Rocky-${{ steps.v.outputs.version }}.zip"
 
       - name: Create release
         env:
@@ -53,9 +65,9 @@ jobs:
           You can always build from source instead: `git clone` + `make run`.
           EOF
           echo "" >> notes.md
-          echo "Build ${{ steps.build.outputs.number }}." >> notes.md
-          gh release create "v${{ inputs.version }}" \
-            "dist/Rocky-${{ inputs.version }}.zip" \
-            --title "Rocky ${{ inputs.version }}" \
+          echo "Build ${{ steps.v.outputs.build }}." >> notes.md
+          gh release create "v${{ steps.v.outputs.version }}" \
+            "dist/Rocky-${{ steps.v.outputs.version }}.zip" \
+            --title "Rocky ${{ steps.v.outputs.version }}" \
             --notes-file notes.md \
             --generate-notes
