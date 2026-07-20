@@ -38,10 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func setUpStatusItem() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        item.button?.image = NSImage(
-            systemSymbolName: "waveform.circle",
-            accessibilityDescription: "vibenotch"
-        )
+        item.button?.image = Self.menuBarIcon(alert: false)
         let menu = NSMenu()
         menu.delegate = self
         item.menu = menu
@@ -57,14 +54,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let needsAttention = hub.sessions.contains {
             $0.status == .waitingPermission || $0.status == .waitingInput
         }
-        let name = needsAttention ? "waveform.circle.fill" : "waveform.circle"
-        let image = NSImage(systemSymbolName: name, accessibilityDescription: "vibenotch")
-        if needsAttention {
-            statusItem?.button?.contentTintColor = .systemOrange
-        } else {
-            statusItem?.button?.contentTintColor = nil
+        statusItem?.button?.image = Self.menuBarIcon(alert: needsAttention)
+    }
+
+    /// Rocky as the menu bar icon: pixel art, full color (not template),
+    /// alert variant while something waits for the user.
+    private static func menuBarIcon(alert: Bool) -> NSImage? {
+        // The @2x bitmap (36px) shown at 18pt maps 1:1 to device pixels on
+        // retina — crisp pixel art.
+        let name = alert ? "menubar-alert@2x" : "menubar@2x"
+        guard let url = Bundle.main.url(
+            forResource: name, withExtension: "png", subdirectory: "Art"
+        ), let image = NSImage(contentsOf: url) else {
+            return NSImage(systemSymbolName: "waveform.circle", accessibilityDescription: "vibenotch")
         }
-        statusItem?.button?.image = image
+        image.size = NSSize(width: 18, height: 18)
+        image.isTemplate = false
+        return image
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
