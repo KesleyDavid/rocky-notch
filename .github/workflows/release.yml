@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version (e.g. 0.1.1)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute build number
+        id: build
+        run: echo "number=$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Stamp version and build number
+        run: |
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${{ inputs.version }}" Support/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ steps.build.outputs.number }}" Support/Info.plist
+
+      - name: Tests
+        run: swift test
+
+      - name: Build app
+        run: make app
+
+      - name: Package
+        run: ditto -c -k --keepParent dist/Rocky.app "dist/Rocky-${{ inputs.version }}.zip"
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > notes.md <<'EOF'
+          ## Install
+
+          Download the zip, unzip and move `Rocky.app` to Applications.
+
+          This build is not notarized yet. On first launch, macOS will warn
+          about an unverified developer: go to System Settings → Privacy &
+          Security → **Open Anyway**, or run
+          `xattr -d com.apple.quarantine /Applications/Rocky.app`.
+
+          You can always build from source instead: `git clone` + `make run`.
+          EOF
+          echo "" >> notes.md
+          echo "Build ${{ steps.build.outputs.number }}." >> notes.md
+          gh release create "v${{ inputs.version }}" \
+            "dist/Rocky-${{ inputs.version }}.zip" \
+            --title "Rocky ${{ inputs.version }}" \
+            --notes-file notes.md \
+            --generate-notes
