@@ -17,6 +17,8 @@ app: build
 	printf 'APPL????' > $(APP)/Contents/PkgInfo
 	cp $(BUILD_DIR)/Vibenotch $(APP)/Contents/MacOS/Vibenotch
 	cp $(BUILD_DIR)/vibenotch-hook $(APP)/Contents/MacOS/vibenotch-hook
+	mkdir -p $(APP)/Contents/Resources/Sounds
+	cp Support/Sounds/*.mp3 $(APP)/Contents/Resources/Sounds/
 	codesign --force --deep --sign - $(APP)
 
 run: app

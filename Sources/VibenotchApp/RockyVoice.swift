@@ -14,8 +14,20 @@ final class RockyVoice {
     private let player = AVAudioPlayerNode()
     private let sampleRate: Double = 44_100
     private var ready = false
+    /// Produced sound files bundled in Resources/Sounds; the
+    /// synthesized chords below are the fallback when a file is missing.
+    private var filePlayers: [String: AVAudioPlayer] = [:]
 
     private init() {
+        for name in ["rocky-question", "rocky-done", "rocky-attention"] {
+            if let url = Bundle.main.url(
+                forResource: name, withExtension: "mp3", subdirectory: "Sounds"
+            ), let filePlayer = try? AVAudioPlayer(contentsOf: url) {
+                filePlayer.volume = 0.6
+                filePlayer.prepareToPlay()
+                filePlayers[name] = filePlayer
+            }
+        }
         let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1)!
         engine.attach(player)
         engine.connect(player, to: engine.mainMixerNode, format: format)
@@ -31,6 +43,7 @@ final class RockyVoice {
 
     /// "May I?" — two chords rising like a question (♪ sol–si … dó–mi ♪).
     func question() {
+        guard !playFile("rocky-question") else { return }
         play(phrase: [
             (notes: [392.00, 493.88], duration: 0.16),
             (notes: [523.25, 659.26], duration: 0.30),
@@ -39,6 +52,7 @@ final class RockyVoice {
 
     /// "Done!" — a settling major triad (amaze!).
     func done() {
+        guard !playFile("rocky-done") else { return }
         play(phrase: [
             (notes: [523.25, 659.26, 783.99], duration: 0.40)
         ])
@@ -46,9 +60,17 @@ final class RockyVoice {
 
     /// "You there?" — one gentle open fifth.
     func attention() {
+        guard !playFile("rocky-attention") else { return }
         play(phrase: [
             (notes: [440.00, 659.26], duration: 0.25)
         ])
+    }
+
+    private func playFile(_ name: String) -> Bool {
+        guard let filePlayer = filePlayers[name] else { return false }
+        filePlayer.currentTime = 0
+        filePlayer.play()
+        return true
     }
 
     // MARK: - Synthesis
