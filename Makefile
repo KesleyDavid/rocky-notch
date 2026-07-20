@@ -20,6 +20,7 @@ app: build
 	mkdir -p $(APP)/Contents/Resources/Sounds $(APP)/Contents/Resources/Art $(APP)/Contents/Resources/Fonts
 	cp Support/Sounds/*.mp3 $(APP)/Contents/Resources/Sounds/
 	cp Support/Art/rocky/*.png $(APP)/Contents/Resources/Art/
+	cp Support/Art/rocky-idle/*.png $(APP)/Contents/Resources/Art/
 	cp Support/Fonts/PressStart2P-Regular.ttf Support/Fonts/OFL.txt $(APP)/Contents/Resources/Fonts/
 	if [ -f Support/AppIcon.icns ]; then cp Support/AppIcon.icns $(APP)/Contents/Resources/AppIcon.icns; fi
 	codesign --force --deep --sign - $(APP)

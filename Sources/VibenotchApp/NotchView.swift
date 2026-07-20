@@ -83,16 +83,12 @@ struct NotchView: View {
     private var collapsedContent: some View {
         HStack {
             HStack(spacing: 9) {
-                RockySprite(
-                    state: hasPending
-                        ? "rocky-alert"
-                        : anyRunning ? "south" : "rocky-sleeping",
-                    fallback: "south",
-                    size: 20
-                )
-                if anyRunning {
-                    EqualizerBars(tint: Palette.green)
-                        .frame(width: 14, height: 10)
+                if hasPending {
+                    RockySprite(state: "rocky-alert", fallback: "south", size: 20)
+                } else if anyRunning {
+                    RockyAnimatedSprite(size: 20)
+                } else {
+                    RockySprite(state: "rocky-sleeping", fallback: "south", size: 20)
                 }
             }
             .padding(.leading, 18)
@@ -393,6 +389,33 @@ private struct BreathingModifier: ViewModifier {
 extension View {
     func breathing(period: Double = 1.2) -> some View {
         modifier(BreathingModifier(period: period))
+    }
+}
+
+/// Rocky alive: cycles the idle frames (breathing carapace).
+struct RockyAnimatedSprite: View {
+    let size: CGFloat
+    private static let frames: [NSImage] = (0..<9).compactMap { index in
+        guard let url = Bundle.main.url(
+            forResource: "idle-\(index)", withExtension: "png", subdirectory: "Art"
+        ) else { return nil }
+        return NSImage(contentsOf: url)
+    }
+
+    var body: some View {
+        if Self.frames.isEmpty {
+            RockySprite(state: "south", fallback: "south", size: size)
+        } else {
+            TimelineView(.animation(minimumInterval: 1.0 / 8.0)) { timeline in
+                let index = Int(timeline.date.timeIntervalSinceReferenceDate * 8)
+                    % Self.frames.count
+                Image(nsImage: Self.frames[index])
+                    .interpolation(.none)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: size, height: size)
+            }
+        }
     }
 }
 
