@@ -1,12 +1,27 @@
 <p align="center">
-  <img src="Support/Art/rocky/south.png" width="88" alt="Rocky" />
+  <img src=".github/assets/icon.png" width="128" alt="Rocky app icon" />
 </p>
 
 <h1 align="center">Rocky</h1>
 
 <p align="center">
-  Your AI coding agents, living in the notch.<br />
+  <b>Your AI coding agents, living in the notch.</b><br />
   Watch every Claude Code and Codex session and approve permissions without leaving your flow.
+</p>
+
+<p align="center">
+  <a href="https://github.com/wescld/rocky-notch/actions/workflows/ci.yml"><img src="https://github.com/wescld/rocky-notch/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://github.com/wescld/rocky-notch/releases/latest"><img src="https://img.shields.io/github/v/release/wescld/rocky-notch?color=3DE383" alt="Latest release" /></a>
+  <img src="https://img.shields.io/badge/macOS-14%2B-black" alt="macOS 14+" />
+  <img src="https://img.shields.io/badge/Swift-5.10-F05138" alt="Swift" />
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT" />
+</p>
+
+<p align="center">
+  <img src="Support/Art/rocky/south.png" width="44" alt="" />&nbsp;&nbsp;
+  <img src="Support/Art/rocky/rocky-sleeping.png" width="44" alt="" />&nbsp;&nbsp;
+  <img src="Support/Art/rocky/rocky-alert.png" width="44" alt="" />&nbsp;&nbsp;
+  <img src="Support/Art/rocky/rocky-celebrating.png" width="44" alt="" />
 </p>
 
 ---
