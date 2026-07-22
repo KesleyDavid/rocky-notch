@@ -121,8 +121,7 @@ public struct SessionStore: Equatable, Sendable {
         case .userPromptSubmit:
             session.status = .running
             if let prompt = event.prompt {
-                let flat = prompt.replacingOccurrences(of: "\n", with: " ")
-                session.task = flat.count > 100 ? String(flat.prefix(99)) + "…" : flat
+                session.task = Self.displayTask(from: prompt)
             }
         case .permissionRequest:
             session.status = .waitingPermission
@@ -188,5 +187,33 @@ public struct SessionStore: Equatable, Sendable {
             session.pending != nil
                 || now.timeIntervalSince(session.lastEventAt) < orphanTimeout
         }
+    }
+
+    /// One-line task chip from a raw UserPromptSubmit prompt.
+    ///
+    /// Grok wraps human turns in `<user_query>...</user_query>` for the model;
+    /// those tags must not show up in the notch ("You: &lt;user_query&gt; …").
+    public static func displayTask(from prompt: String, maxLength: Int = 100) -> String {
+        var text = prompt
+        let openTag = "<user_query>"
+        let closeTag = "</user_query>"
+        if let open = text.range(of: openTag, options: .caseInsensitive),
+           let close = text.range(of: closeTag, options: .caseInsensitive),
+           open.upperBound <= close.lowerBound {
+            text = String(text[open.upperBound..<close.lowerBound])
+        } else {
+            // Truncated payloads may only carry the opening tag.
+            text = text.replacingOccurrences(
+                of: openTag, with: "", options: .caseInsensitive
+            )
+            text = text.replacingOccurrences(
+                of: closeTag, with: "", options: .caseInsensitive
+            )
+        }
+        let flat = text
+            .split(whereSeparator: \.isWhitespace)
+            .joined(separator: " ")
+        guard flat.count > maxLength else { return flat }
+        return String(flat.prefix(maxLength - 1)) + "…"
     }
 }
