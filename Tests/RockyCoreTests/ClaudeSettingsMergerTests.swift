@@ -150,6 +150,22 @@ final class ClaudeSettingsMergerTests: XCTestCase {
         ))
     }
 
+    /// Every agent needs PostToolUse: without it a permission approved at the
+    /// terminal leaves the notch card up until the decision timeout, because
+    /// the agent never answers the hook it left blocked.
+    func testAllAgentsInstallPostToolUseAsFireAndForget() {
+        let sets: [(String, [(name: String, needsReply: Bool)])] = [
+            ("claude", ClaudeSettingsMerger.claudeEvents),
+            ("codex", ClaudeSettingsMerger.codexEvents),
+            ("grok", ClaudeSettingsMerger.grokEvents),
+        ]
+        for (label, events) in sets {
+            let post = events.first { $0.name == "PostToolUse" }
+            XCTAssertNotNil(post, "\(label) must install PostToolUse")
+            XCTAssertEqual(post?.needsReply, false, "\(label) PostToolUse must not block")
+        }
+    }
+
     /// An install written before `--agent` was passed keeps the right binary
     /// but the wrong command, so it must read as stale and get re-merged.
     func testIsCurrentDetectsMissingAgentArgument() throws {

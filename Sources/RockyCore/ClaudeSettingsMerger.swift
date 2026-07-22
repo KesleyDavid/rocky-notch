@@ -19,9 +19,14 @@ public enum ClaudeSettingsMerger {
     public static let legacyMarker = "vibenotch-hook"
 
     /// Hook events we install per agent. PermissionRequest is the approval
-    /// channel; PreToolUse is deliberately absent (fires for every call,
-    /// would stall auto-approved tools). Codex has no SessionEnd or
+    /// channel; PreToolUse is deliberately absent for Claude/Codex (fires for
+    /// every call, would stall auto-approved tools). Codex has no SessionEnd or
     /// Notification — orphan pruning covers session cleanup there.
+    ///
+    /// PostToolUse is observe-only and every agent has it. It exists here for
+    /// one reason: when the user approves at the terminal instead of the notch,
+    /// the agent proceeds without ever answering the blocked hook, so the tool
+    /// running is the only evidence the card is stale.
     public static let claudeEvents: [(name: String, needsReply: Bool)] = [
         ("SessionStart", false),
         ("SessionEnd", false),
@@ -36,6 +41,7 @@ public enum ClaudeSettingsMerger {
         ("SessionStart", false),
         ("UserPromptSubmit", false),
         ("Stop", false),
+        ("PostToolUse", false),
         ("PermissionRequest", true),
     ]
 
@@ -48,6 +54,7 @@ public enum ClaudeSettingsMerger {
         ("UserPromptSubmit", false),
         ("Stop", false),
         ("Notification", false),
+        ("PostToolUse", false),
         ("PreToolUse", true),
     ]
 
