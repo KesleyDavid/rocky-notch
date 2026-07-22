@@ -78,28 +78,37 @@ public enum TranscriptTail {
             (input?[key] as? String).map { ($0 as NSString).lastPathComponent }
         }
         switch tool {
-        case "Bash":
+        case "Bash", "run_terminal_command", "PowerShell":
             if let command = input?["command"] as? String {
                 return "running \(command)"
             }
             return "running a command"
-        case "Edit", "MultiEdit", "NotebookEdit":
-            return base("file_path").map { "editing \($0)" } ?? "editing a file"
-        case "Write":
-            return base("file_path").map { "writing \($0)" } ?? "writing a file"
-        case "Read":
-            return base("file_path").map { "reading \($0)" } ?? "reading a file"
-        case "Grep", "Glob":
+        case "Edit", "MultiEdit", "NotebookEdit", "search_replace":
+            return base("file_path").map { "editing \($0)" }
+                ?? base("target_file").map { "editing \($0)" }
+                ?? "editing a file"
+        case "Write", "write":
+            return base("file_path").map { "writing \($0)" }
+                ?? base("target_file").map { "writing \($0)" }
+                ?? "writing a file"
+        case "Read", "read_file":
+            return base("file_path").map { "reading \($0)" }
+                ?? base("target_file").map { "reading \($0)" }
+                ?? "reading a file"
+        case "Grep", "Glob", "grep", "list_dir", "ListDir":
             return "searching the codebase"
-        case "WebFetch", "WebSearch":
+        case "WebFetch", "WebSearch", "web_search", "web_fetch", "open_page":
             if let url = input?["url"] as? String,
                let host = URL(string: url)?.host {
                 return "browsing \(host)"
             }
+            if let query = input?["query"] as? String {
+                return "searching \(query)"
+            }
             return "browsing the web"
-        case "Task", "Agent":
+        case "Task", "Agent", "spawn_subagent":
             return "delegating to a subagent"
-        case "TodoWrite", "TaskCreate", "TaskUpdate":
+        case "TodoWrite", "TaskCreate", "TaskUpdate", "todo_write":
             return "planning tasks"
         default:
             return "using \(tool)"

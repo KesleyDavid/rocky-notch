@@ -53,6 +53,26 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertEqual(store.sessions["s1"]?.status, .waitingPermission)
     }
 
+    func testGrokPreToolUseMapsToPermissionWait() {
+        var store = SessionStore()
+        let env = HookEnvelope(
+            requestId: "r-grok",
+            hookPid: 1,
+            agent: "grok",
+            event: HookEvent(
+                sessionId: "s1",
+                hookEventName: "pre_tool_use",
+                cwd: "/tmp/proj",
+                toolName: "run_terminal_command",
+                toolInput: .object(["command": .string("ls")])
+            )
+        )
+        store.apply(env, at: t0)
+        XCTAssertEqual(store.sessions["s1"]?.agent, "grok")
+        XCTAssertEqual(store.sessions["s1"]?.status, .waitingPermission)
+        XCTAssertEqual(store.sessions["s1"]?.pending?.toolName, "run_terminal_command")
+    }
+
     func testNotificationTypes() {
         var store = SessionStore()
         store.apply(envelope("SessionStart"), at: t0)
@@ -195,6 +215,42 @@ final class SessionStoreTests: XCTestCase {
         store.apply(env, at: t0)
         XCTAssertEqual(store.sessions["s1"]?.status, .running)
         XCTAssertEqual(store.sessions["s1"]?.task, "fix the auth bug in middleware")
+    }
+
+    func testGrokUserQueryTagsStrippedFromTask() {
+        var store = SessionStore()
+        let env = HookEnvelope(
+            requestId: "r", hookPid: 1, agent: "grok",
+            event: HookEvent(
+                sessionId: "s1", hookEventName: "UserPromptSubmit",
+                cwd: "/tmp/p",
+                prompt: "<user_query>\nsem fazer nada, seria possivel dar suporte ao cursor?\n</user_query>"
+            )
+        )
+        store.apply(env, at: t0)
+        XCTAssertEqual(
+            store.sessions["s1"]?.task,
+            "sem fazer nada, seria possivel dar suporte ao cursor?"
+        )
+    }
+
+    func testDisplayTaskStripsOrphanUserQueryTag() {
+        XCTAssertEqual(
+            SessionStore.displayTask(from: "<user_query> short ask"),
+            "short ask"
+        )
+        XCTAssertEqual(
+            SessionStore.displayTask(from: "plain prompt"),
+            "plain prompt"
+        )
+        // Truncation after strip so tags don't burn the budget.
+        let long = String(repeating: "a", count: 120)
+        let task = SessionStore.displayTask(
+            from: "<user_query>\n\(long)\n</user_query>"
+        )
+        XCTAssertFalse(task.contains("user_query"))
+        XCTAssertTrue(task.hasSuffix("…"))
+        XCTAssertEqual(task.count, 100)
     }
 
     func testOrderedByRecency() {

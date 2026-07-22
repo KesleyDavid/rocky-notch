@@ -47,6 +47,24 @@ final class IPCTests: XCTestCase {
         XCTAssertNil(PermissionRequestOutput.stdout(for: .passthrough))
     }
 
+    func testGrokPermissionOutputFormat() throws {
+        let allow = try XCTUnwrap(PermissionRequestOutput.stdout(for: .allow, agent: "grok"))
+        let allowRoot = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: allow) as? [String: Any]
+        )
+        XCTAssertEqual(allowRoot["decision"] as? String, "allow")
+        XCTAssertNil(allowRoot["hookSpecificOutput"])
+
+        let deny = try XCTUnwrap(PermissionRequestOutput.stdout(for: .deny, agent: "grok"))
+        let denyRoot = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: deny) as? [String: Any]
+        )
+        XCTAssertEqual(denyRoot["decision"] as? String, "deny")
+        XCTAssertEqual(denyRoot["reason"] as? String, "Denied in Rocky")
+
+        XCTAssertNil(PermissionRequestOutput.stdout(for: .passthrough, agent: "grok"))
+    }
+
     func testSocketPath() {
         XCTAssertEqual(
             IPC.socketPath(home: "/Users/w"),

@@ -79,30 +79,62 @@ public enum NDJSON {
     }
 }
 
-/// Builds the stdout payload the hook prints back to Claude Code.
+/// Builds the stdout payload the hook prints back to the calling agent CLI.
 public enum PermissionRequestOutput {
     /// Returns the JSON to print for allow/deny, or nil when the hook must
-    /// exit silently (ask/passthrough → Claude Code shows its own prompt).
-    public static func stdout(for decision: Decision, updatedInput: JSONValue? = nil) -> Data? {
+    /// exit silently (ask/passthrough → the agent shows its own prompt /
+    /// continues fail-open).
+    ///
+    /// Claude Code and Codex use `hookSpecificOutput` + `behavior`.
+    /// Grok's PreToolUse hooks expect `{"decision":"allow|deny"}`.
+    public static func stdout(
+        for decision: Decision,
+        agent: String = "claude-code",
+        updatedInput: JSONValue? = nil
+    ) -> Data? {
         switch decision {
         case .ask, .passthrough:
             return nil
         case .allow, .deny:
-            var decisionObject: [String: JSONValue] = [
-                "behavior": .string(decision.rawValue)
-            ]
-            if decision == .allow, let updatedInput {
-                decisionObject["updatedInput"] = updatedInput
+            if agent == "grok" {
+                return grokStdout(for: decision)
             }
-            let payload: JSONValue = .object([
-                "hookSpecificOutput": .object([
-                    "hookEventName": .string("PermissionRequest"),
-                    "decision": .object(decisionObject),
-                ])
-            ])
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-            return try? encoder.encode(payload)
+            return claudeStdout(for: decision, updatedInput: updatedInput)
         }
+    }
+
+    private static func claudeStdout(
+        for decision: Decision,
+        updatedInput: JSONValue?
+    ) -> Data? {
+        var decisionObject: [String: JSONValue] = [
+            "behavior": .string(decision.rawValue)
+        ]
+        if decision == .allow, let updatedInput {
+            decisionObject["updatedInput"] = updatedInput
+        }
+        let payload: JSONValue = .object([
+            "hookSpecificOutput": .object([
+                "hookEventName": .string("PermissionRequest"),
+                "decision": .object(decisionObject),
+            ])
+        ])
+        return encode(payload)
+    }
+
+    private static func grokStdout(for decision: Decision) -> Data? {
+        var object: [String: JSONValue] = [
+            "decision": .string(decision.rawValue)
+        ]
+        if decision == .deny {
+            object["reason"] = .string("Denied in Rocky")
+        }
+        return encode(.object(object))
+    }
+
+    private static func encode(_ payload: JSONValue) -> Data? {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        return try? encoder.encode(payload)
     }
 }

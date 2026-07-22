@@ -129,4 +129,23 @@ final class ClaudeSettingsMergerTests: XCTestCase {
         let hook = try XCTUnwrap((group["hooks"] as? [[String: Any]])?.first)
         XCTAssertEqual(hook["command"] as? String, "\"\(spacedBinary)\"")
     }
+
+    func testGrokEventsUsePreToolUse() throws {
+        let out = try ClaudeSettingsMerger.merge(
+            settings: nil,
+            hookBinaryPath: binary,
+            events: ClaudeSettingsMerger.grokEvents,
+            commandArguments: "--agent grok"
+        )
+        let hooks = try XCTUnwrap(try parse(out)["hooks"] as? [String: Any])
+        XCTAssertNil(hooks["PermissionRequest"])
+        let pre = try XCTUnwrap((hooks["PreToolUse"] as? [[String: Any]])?.first)
+        let hook = try XCTUnwrap((pre["hooks"] as? [[String: Any]])?.first)
+        XCTAssertEqual(hook["command"] as? String, "\(binary) --agent grok")
+        XCTAssertEqual(hook["timeout"] as? Int, 60)
+        XCTAssertTrue(ClaudeSettingsMerger.isInstalled(settings: out))
+        XCTAssertTrue(ClaudeSettingsMerger.isCurrent(
+            settings: out, hookBinaryPath: binary, events: ClaudeSettingsMerger.grokEvents
+        ))
+    }
 }

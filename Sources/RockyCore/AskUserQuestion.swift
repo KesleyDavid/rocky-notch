@@ -36,7 +36,8 @@ public struct AskUserQuestionRequest: Equatable, Sendable {
 
     /// Nil unless the input carries at least one question with options.
     public static func from(toolName: String, input: JSONValue?) -> AskUserQuestionRequest? {
-        guard toolName == "AskUserQuestion",
+        // Grok's native name is ask_user_question; Claude uses AskUserQuestion.
+        guard toolName == "AskUserQuestion" || toolName == "ask_user_question",
               case .array(let rawQuestions)? = input?["questions"]
         else { return nil }
         let questions: [Question] = rawQuestions.compactMap { raw in

@@ -38,6 +38,18 @@ public enum ClaudeSettingsMerger {
         ("PermissionRequest", true),
     ]
 
+    /// Grok has no PermissionRequest; PreToolUse is the blocking approval
+    /// channel. SessionEnd + Notification are supported and keep the session
+    /// card accurate without relying on orphan pruning alone.
+    public static let grokEvents: [(name: String, needsReply: Bool)] = [
+        ("SessionStart", false),
+        ("SessionEnd", false),
+        ("UserPromptSubmit", false),
+        ("Stop", false),
+        ("Notification", false),
+        ("PreToolUse", true),
+    ]
+
     public static func merge(
         settings data: Data?,
         hookBinaryPath: String,
@@ -111,10 +123,15 @@ public enum ClaudeSettingsMerger {
 
     public static func isInstalled(settings data: Data?) -> Bool {
         guard let root = try? parse(data),
-              let hooks = root["hooks"] as? [String: Any],
-              let groups = hooks["PermissionRequest"] as? [[String: Any]]
+              let hooks = root["hooks"] as? [String: Any]
         else { return false }
-        return groups.contains(where: isOurs)
+        // Claude/Codex install under PermissionRequest; Grok under PreToolUse.
+        for event in ["PermissionRequest", "PreToolUse"] {
+            if let groups = hooks[event] as? [[String: Any]], groups.contains(where: isOurs) {
+                return true
+            }
+        }
+        return false
     }
 
     // MARK: - Internals
