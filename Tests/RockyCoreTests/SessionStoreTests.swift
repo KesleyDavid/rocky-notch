@@ -83,6 +83,18 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertTrue(abandoned.isEmpty)
     }
 
+    func testPruneDeadHostsDropsWhenAgentProcessDiesButTerminalLives() {
+        // Codex Ctrl+C: agent CLI exits, Warp (terminalAppPid) stays up.
+        var store = SessionStore()
+        store.apply(envelope("SessionStart", session: "codex-1"), at: t0)
+        store.setTerminalApp(pid: 100, sessionId: "codex-1")
+        store.setAgentProcess(pid: 200, sessionId: "codex-1")
+
+        let abandoned = store.pruneDeadHosts { pid in pid == 100 } // only Warp alive
+        XCTAssertTrue(store.sessions.isEmpty)
+        XCTAssertTrue(abandoned.isEmpty)
+    }
+
     func testPruneDeadHostsReturnsPendingRequestIds() {
         var store = SessionStore()
         store.apply(

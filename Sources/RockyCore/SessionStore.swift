@@ -43,6 +43,10 @@ public struct AgentSession: Identifiable, Equatable, Sendable {
     /// PID of the GUI app (terminal/editor) hosting this session, resolved
     /// from the hook's process ancestry while the hook is still alive.
     public var terminalAppPid: Int32?
+    /// PID of the agent CLI process (codex / claude / grok), if resolved.
+    /// Used to drop the card when the user Ctrl+C's the agent while the
+    /// terminal app (e.g. Warp) is still running.
+    public var agentProcessPid: Int32? = nil
     public var transcriptPath: String?
     /// Last meaningful action from the transcript ("Bash: npm test").
     public var lastAction: String?
@@ -156,6 +160,10 @@ public struct SessionStore: Equatable, Sendable {
         sessions[sessionId]?.terminalAppPid = pid
     }
 
+    public mutating func setAgentProcess(pid: Int32, sessionId: String) {
+        sessions[sessionId]?.agentProcessPid = pid
+    }
+
     public mutating func setLastAction(_ action: String, sessionId: String) {
         sessions[sessionId]?.lastAction = action
     }
@@ -190,16 +198,22 @@ public struct SessionStore: Equatable, Sendable {
         }
     }
 
-    /// Drop sessions whose host GUI process (terminal / IDE) is gone.
+    /// Drop sessions whose host GUI or agent CLI process is gone.
     /// Returns pending request ids so the hub can cancel decision timeouts.
-    /// Sessions without a resolved `terminalAppPid` are left alone (orphan
-    /// timeout still applies).
+    /// Sessions with no resolved PIDs are left alone (orphan timeout still
+    /// applies).
     @discardableResult
     public mutating func pruneDeadHosts(isAlive: (Int32) -> Bool) -> [String] {
         var abandoned: [String] = []
         sessions = sessions.filter { _, session in
-            guard let pid = session.terminalAppPid else { return true }
-            if isAlive(pid) { return true }
+            var dead = false
+            if let pid = session.agentProcessPid, !isAlive(pid) {
+                dead = true
+            }
+            if let pid = session.terminalAppPid, !isAlive(pid) {
+                dead = true
+            }
+            guard dead else { return true }
             if let requestId = session.pending?.requestId {
                 abandoned.append(requestId)
             }

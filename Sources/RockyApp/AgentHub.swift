@@ -71,10 +71,7 @@ final class AgentHub: ObservableObject {
         store.pruneOrphans(now: Date())
 
         var abandoned = store.pruneDeadHosts { pid in
-            guard let app = NSRunningApplication(processIdentifier: pid) else {
-                return false
-            }
-            return !app.isTerminated
+            TerminalFocus.isProcessAlive(pid)
         }
 
         if !Self.isCursorRunning() {
@@ -119,6 +116,10 @@ final class AgentHub: ObservableObject {
 
     /// Resolves the hook's GUI ancestor; injectable for tests.
     var resolveTerminalApp: (Int32) -> Int32? = { TerminalFocus.guiAncestor(of: $0) }
+    /// Resolves the agent CLI process (codex/claude/grok); injectable for tests.
+    var resolveAgentProcess: (Int32, String) -> Int32? = {
+        TerminalFocus.agentAncestor(of: $0, agent: $1)
+    }
 
     private func handle(_ envelope: HookEnvelope) {
         // Subagent permission requests have no UI (we track top-level
@@ -133,6 +134,9 @@ final class AgentHub: ObservableObject {
         store.apply(envelope, at: Date())
         if let guiPid = resolveTerminalApp(envelope.hookPid) {
             store.setTerminalApp(pid: guiPid, sessionId: envelope.event.sessionId)
+        }
+        if let agentPid = resolveAgentProcess(envelope.hookPid, envelope.agent) {
+            store.setAgentProcess(pid: agentPid, sessionId: envelope.event.sessionId)
         }
 
         // Transcript enrichment follows the session's lifetime. Codex marks
