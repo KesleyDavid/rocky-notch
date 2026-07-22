@@ -38,6 +38,7 @@ final class AskUserQuestionTests: XCTestCase {
     func testIgnoresOtherToolsAndMalformedInput() {
         XCTAssertNil(AskUserQuestionRequest.from(toolName: "Bash", input: input(sample)))
         XCTAssertNil(AskUserQuestionRequest.from(toolName: "AskUserQuestion", input: nil))
+        XCTAssertNotNil(AskUserQuestionRequest.from(toolName: "ask_user_question", input: input(sample)))
         XCTAssertNil(AskUserQuestionRequest.from(
             toolName: "AskUserQuestion",
             input: input(#"{"questions": [{"question": "No options?", "options": []}]}"#)

@@ -60,4 +60,53 @@ final class HookEventTests: XCTestCase {
         """)
         XCTAssertEqual(event.toolSummary, "/a/b.swift")
     }
+
+    func testDecodesGrokCamelCasePayload() throws {
+        let event = try decode("""
+        {
+          "hookEventName": "pre_tool_use",
+          "sessionId": "019f8a2b-85d7-75d3-9873-f72239a27629",
+          "cwd": "/Users/w/proj",
+          "workspaceRoot": "/Users/w/proj/",
+          "transcriptPath": "/Users/w/.grok/sessions/abc/events.jsonl",
+          "toolName": "run_terminal_command",
+          "toolInput": {"command": "npm test"},
+          "timestamp": "2026-07-22T14:12:18.417054+00:00"
+        }
+        """)
+        XCTAssertEqual(event.kind, .permissionRequest)
+        XCTAssertEqual(event.hookEventName, "PreToolUse")
+        XCTAssertEqual(event.sessionId, "019f8a2b-85d7-75d3-9873-f72239a27629")
+        XCTAssertEqual(event.cwd, "/Users/w/proj")
+        XCTAssertEqual(event.toolName, "run_terminal_command")
+        XCTAssertEqual(event.toolSummary, "npm test")
+        XCTAssertEqual(event.transcriptPath, "/Users/w/.grok/sessions/abc/events.jsonl")
+    }
+
+    func testDecodesGrokLifecycleEventNames() throws {
+        for (raw, kind) in [
+            ("session_start", HookEvent.Kind.sessionStart),
+            ("user_prompt_submit", .userPromptSubmit),
+            ("notification", .notification),
+            ("stop", .stop),
+            ("session_end", .sessionEnd),
+        ] as [(String, HookEvent.Kind)] {
+            let event = try decode("""
+            {"sessionId": "s", "hookEventName": "\(raw)", "cwd": "/tmp"}
+            """)
+            XCTAssertEqual(event.kind, kind, raw)
+        }
+    }
+
+    func testGrokToolSummaryUsesTargetFile() throws {
+        let event = try decode("""
+        {
+          "sessionId": "s",
+          "hookEventName": "PreToolUse",
+          "toolName": "search_replace",
+          "toolInput": {"file_path": "/tmp/x.swift", "old_string": "a", "new_string": "b"}
+        }
+        """)
+        XCTAssertEqual(event.toolSummary, "/tmp/x.swift")
+    }
 }

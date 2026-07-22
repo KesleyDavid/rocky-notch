@@ -1,8 +1,9 @@
 import Foundation
 
-/// A decoded hook event from an agent CLI (Claude Code schema).
-/// Decoding is tolerant: unknown event names and missing optional fields
-/// never fail — the app degrades to showing less detail, not crashing.
+/// A decoded hook event from an agent CLI.
+/// Accepts Claude Code / Codex snake_case payloads and Grok's camelCase
+/// variant. Decoding is tolerant: unknown event names and missing optional
+/// fields never fail — the app degrades to showing less detail, not crashing.
 public struct HookEvent: Codable, Equatable, Sendable {
     public enum Kind: Equatable, Sendable {
         case sessionStart
@@ -14,24 +15,45 @@ public struct HookEvent: Codable, Equatable, Sendable {
         case unknown(String)
 
         public init(name: String) {
-            switch name {
+            switch Self.canonical(name) {
             case "SessionStart": self = .sessionStart
             case "SessionEnd": self = .sessionEnd
             case "Stop": self = .stop
             case "Notification": self = .notification
-            case "PermissionRequest": self = .permissionRequest
+            // Grok has no PermissionRequest; PreToolUse is the blocking
+            // channel and maps to the same approval UI flow.
+            case "PermissionRequest", "PreToolUse": self = .permissionRequest
             case "UserPromptSubmit": self = .userPromptSubmit
             default: self = .unknown(name)
+            }
+        }
+
+        /// Normalizes PascalCase, camelCase, and snake_case event names to
+        /// the PascalCase forms Rocky uses internally.
+        public static func canonical(_ name: String) -> String {
+            let compact = name
+                .replacingOccurrences(of: "_", with: "")
+                .lowercased()
+            switch compact {
+            case "sessionstart": return "SessionStart"
+            case "sessionend": return "SessionEnd"
+            case "stop", "stopfailure": return "Stop"
+            case "notification": return "Notification"
+            case "permissionrequest": return "PermissionRequest"
+            case "pretooluse": return "PreToolUse"
+            case "userpromptsubmit": return "UserPromptSubmit"
+            default: return name
             }
         }
     }
 
     public let sessionId: String
+    /// Canonical PascalCase name when recognized; otherwise the raw value.
     public let hookEventName: String
     public let cwd: String?
     public let transcriptPath: String?
     public let permissionMode: String?
-    /// PermissionRequest
+    /// PermissionRequest / PreToolUse
     public let toolName: String?
     public let toolInput: JSONValue?
     /// Notification
@@ -52,39 +74,80 @@ public struct HookEvent: Codable, Equatable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case sessionId = "session_id"
+        case sessionIdCamel = "sessionId"
         case hookEventName = "hook_event_name"
+        case hookEventNameCamel = "hookEventName"
         case cwd
+        case workspaceRoot
+        case workspace_root
         case transcriptPath = "transcript_path"
+        case transcriptPathCamel = "transcriptPath"
         case permissionMode = "permission_mode"
+        case permissionModeCamel = "permissionMode"
         case toolName = "tool_name"
+        case toolNameCamel = "toolName"
         case toolInput = "tool_input"
+        case toolInputCamel = "toolInput"
         case message
         case notificationType = "type"
+        case notificationTypeAlt = "notification_type"
+        case notificationTypeCamel = "notificationType"
         case source
         case model
         case sessionTitle = "session_title"
+        case sessionTitleCamel = "sessionTitle"
         case lastAssistantMessage = "last_assistant_message"
+        case lastAssistantMessageCamel = "lastAssistantMessage"
         case prompt
         case agentId = "agent_id"
+        case agentIdCamel = "agentId"
     }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        sessionId = try c.decode(String.self, forKey: .sessionId)
-        hookEventName = try c.decode(String.self, forKey: .hookEventName)
-        cwd = try c.decodeIfPresent(String.self, forKey: .cwd)
-        transcriptPath = try c.decodeIfPresent(String.self, forKey: .transcriptPath)
-        permissionMode = try c.decodeIfPresent(String.self, forKey: .permissionMode)
-        toolName = try c.decodeIfPresent(String.self, forKey: .toolName)
+        sessionId = try Self.decodeRequiredString(c, .sessionId, .sessionIdCamel)
+        let rawEventName = try Self.decodeRequiredString(c, .hookEventName, .hookEventNameCamel)
+        hookEventName = Kind.canonical(rawEventName)
+        cwd = try Self.decodeOptionalString(c, .cwd)
+            ?? Self.decodeOptionalString(c, .workspaceRoot)
+            ?? Self.decodeOptionalString(c, .workspace_root)
+        transcriptPath = try Self.decodeOptionalString(c, .transcriptPath, .transcriptPathCamel)
+        permissionMode = try Self.decodeOptionalString(c, .permissionMode, .permissionModeCamel)
+        toolName = try Self.decodeOptionalString(c, .toolName, .toolNameCamel)
         toolInput = try c.decodeIfPresent(JSONValue.self, forKey: .toolInput)
+            ?? c.decodeIfPresent(JSONValue.self, forKey: .toolInputCamel)
         message = try c.decodeIfPresent(String.self, forKey: .message)
-        notificationType = try c.decodeIfPresent(String.self, forKey: .notificationType)
+        notificationType = try Self.decodeOptionalString(
+            c, .notificationType, .notificationTypeAlt, .notificationTypeCamel
+        )
         source = try c.decodeIfPresent(String.self, forKey: .source)
         model = try c.decodeIfPresent(String.self, forKey: .model)
-        sessionTitle = try c.decodeIfPresent(String.self, forKey: .sessionTitle)
-        lastAssistantMessage = try c.decodeIfPresent(String.self, forKey: .lastAssistantMessage)
+        sessionTitle = try Self.decodeOptionalString(c, .sessionTitle, .sessionTitleCamel)
+        lastAssistantMessage = try Self.decodeOptionalString(
+            c, .lastAssistantMessage, .lastAssistantMessageCamel
+        )
         prompt = try c.decodeIfPresent(String.self, forKey: .prompt)
-        agentId = try c.decodeIfPresent(String.self, forKey: .agentId)
+        agentId = try Self.decodeOptionalString(c, .agentId, .agentIdCamel)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        // Encode the Claude Code snake_case shape (IPC between hook and app).
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(sessionId, forKey: .sessionId)
+        try c.encode(hookEventName, forKey: .hookEventName)
+        try c.encodeIfPresent(cwd, forKey: .cwd)
+        try c.encodeIfPresent(transcriptPath, forKey: .transcriptPath)
+        try c.encodeIfPresent(permissionMode, forKey: .permissionMode)
+        try c.encodeIfPresent(toolName, forKey: .toolName)
+        try c.encodeIfPresent(toolInput, forKey: .toolInput)
+        try c.encodeIfPresent(message, forKey: .message)
+        try c.encodeIfPresent(notificationType, forKey: .notificationType)
+        try c.encodeIfPresent(source, forKey: .source)
+        try c.encodeIfPresent(model, forKey: .model)
+        try c.encodeIfPresent(sessionTitle, forKey: .sessionTitle)
+        try c.encodeIfPresent(lastAssistantMessage, forKey: .lastAssistantMessage)
+        try c.encodeIfPresent(prompt, forKey: .prompt)
+        try c.encodeIfPresent(agentId, forKey: .agentId)
     }
 
     public init(
@@ -105,7 +168,7 @@ public struct HookEvent: Codable, Equatable, Sendable {
         agentId: String? = nil
     ) {
         self.sessionId = sessionId
-        self.hookEventName = hookEventName
+        self.hookEventName = Kind.canonical(hookEventName)
         self.cwd = cwd
         self.transcriptPath = transcriptPath
         self.permissionMode = permissionMode
@@ -125,14 +188,48 @@ public struct HookEvent: Codable, Equatable, Sendable {
     public var toolSummary: String? {
         guard let toolName else { return nil }
         switch toolName {
-        case "Bash":
+        case "Bash", "run_terminal_command", "PowerShell":
             return toolInput?["command"]?.stringValue ?? "shell command"
-        case "Edit", "Write", "Read", "NotebookEdit":
-            return toolInput?["file_path"]?.stringValue ?? toolName
-        case "WebFetch":
+        case "Edit", "Write", "Read", "NotebookEdit",
+             "search_replace", "write", "read_file", "MultiEdit":
+            return toolInput?["file_path"]?.stringValue
+                ?? toolInput?["target_file"]?.stringValue
+                ?? toolName
+        case "WebFetch", "web_fetch", "open_page", "web_fetch_url":
             return toolInput?["url"]?.stringValue ?? toolName
+        case "WebSearch", "web_search":
+            return toolInput?["query"]?.stringValue ?? toolName
         default:
             return toolName
         }
+    }
+
+    // MARK: - Flexible key helpers
+
+    private static func decodeRequiredString(
+        _ c: KeyedDecodingContainer<CodingKeys>,
+        _ keys: CodingKeys...
+    ) throws -> String {
+        for key in keys {
+            if let value = try c.decodeIfPresent(String.self, forKey: key) {
+                return value
+            }
+        }
+        throw DecodingError.keyNotFound(
+            keys[0],
+            .init(codingPath: c.codingPath, debugDescription: "missing \(keys[0].stringValue)")
+        )
+    }
+
+    private static func decodeOptionalString(
+        _ c: KeyedDecodingContainer<CodingKeys>,
+        _ keys: CodingKeys...
+    ) throws -> String? {
+        for key in keys {
+            if let value = try c.decodeIfPresent(String.self, forKey: key) {
+                return value
+            }
+        }
+        return nil
     }
 }

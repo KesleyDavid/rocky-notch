@@ -16,14 +16,15 @@ public struct EditDiff: Equatable, Sendable {
     /// Write's content). Nil for tools without file mutations.
     public static func from(toolName: String, input: JSONValue?) -> EditDiff? {
         switch toolName {
-        case "Edit":
+        case "Edit", "search_replace", "MultiEdit":
             guard let old = input?["old_string"]?.stringValue,
                   let new = input?["new_string"]?.stringValue
             else { return nil }
             return diff(old: old, new: new)
-        case "Write", "NotebookEdit":
+        case "Write", "write", "NotebookEdit":
             guard let content = input?["content"]?.stringValue
                 ?? input?["new_source"]?.stringValue
+                ?? input?["new_string"]?.stringValue
             else { return nil }
             let lines = content.split(separator: "\n", omittingEmptySubsequences: false)
             return EditDiff(

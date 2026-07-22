@@ -1,7 +1,7 @@
-// rocky-hook: executed by agent CLIs (Claude Code) on hook events.
+// rocky-hook: executed by agent CLIs on hook events.
 //
 // Contract: NEVER block or fail the calling agent. Any error path exits 0
-// with no output, which Claude Code treats as "no decision" (passthrough).
+// with no output, which agents treat as "no decision" (passthrough / fail-open).
 // Only an explicit allow/deny decision from the app produces stdout.
 import Foundation
 import RockyCore
@@ -11,8 +11,8 @@ let connectTimeoutMs: Int32 = 50
 // (passthrough) instead of being killed by the agent CLI.
 let decisionDeadline = Date().addingTimeInterval(58)
 
-/// Debug trail at ~/Library/Application Support/vibenotch/hook.log.
-/// Best-effort only — logging must never affect the fail-open contract.
+/// Debug trail next to the socket. Best-effort only — logging must never
+/// affect the fail-open contract.
 func debugLog(_ message: String) {
     let path = (IPC.socketPath() as NSString).deletingLastPathComponent + "/hook.log"
     let line = "\(ISO8601DateFormatter().string(from: Date())) [\(ProcessInfo.processInfo.processIdentifier)] \(message)\n"
@@ -32,8 +32,14 @@ func failOpen(_ reason: String) -> Never {
     exit(0)
 }
 
-// `--agent <name>` identifies the calling CLI (default claude-code).
+// Agent identity: Grok injects GROK_* env vars on every hook, including when
+// it runs Claude-compat hooks from ~/.claude/settings.json. Explicit
+// `--agent` always wins (our native installs set it).
+let env = ProcessInfo.processInfo.environment
 var agent = "claude-code"
+if env["GROK_HOOK_EVENT"] != nil || env["GROK_SESSION_ID"] != nil {
+    agent = "grok"
+}
 let args = CommandLine.arguments
 if let flag = args.firstIndex(of: "--agent"), flag + 1 < args.count {
     agent = args[flag + 1]
@@ -44,6 +50,15 @@ guard let event = try? JSONDecoder().decode(HookEvent.self, from: input) else {
     failOpen("decode: \(String(data: input.prefix(300), encoding: .utf8) ?? "binary")")
 }
 debugLog("event \(event.hookEventName) session=\(event.sessionId) agent=\(agent) tool=\(event.toolName ?? "-") subagent=\(event.agentId ?? "-")")
+
+// Grok PreToolUse fires for every tool. Read-only tools never need a human;
+// exit fail-open immediately so we don't stall the agent or spam the notch.
+if agent == "grok",
+   event.kind == .permissionRequest,
+   GrokToolPolicy.shouldAutoPass(toolName: event.toolName) {
+    debugLog("auto-pass tool=\(event.toolName ?? "-")")
+    exit(0)
+}
 
 let envelope = HookEnvelope(agent: agent, event: event)
 guard let line = try? NDJSON.encodeLine(envelope) else {
@@ -57,7 +72,7 @@ guard client.send(line) else {
 }
 defer { client.closeSocket() }
 
-// Fire-and-forget events end here; only PermissionRequest waits for a reply.
+// Fire-and-forget events end here; PermissionRequest / PreToolUse wait.
 guard event.kind == .permissionRequest else {
     exit(0)
 }
@@ -72,7 +87,11 @@ else {
     failOpen("invalid reply")
 }
 debugLog("decision \(reply.decision.rawValue) session=\(event.sessionId)")
-guard let output = PermissionRequestOutput.stdout(for: reply.decision, updatedInput: reply.updatedInput) else {
+guard let output = PermissionRequestOutput.stdout(
+    for: reply.decision,
+    agent: agent,
+    updatedInput: reply.updatedInput
+) else {
     exit(0)
 }
 

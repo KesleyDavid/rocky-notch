@@ -258,7 +258,7 @@ struct SessionListView: View {
                 VStack(spacing: 10) {
                     RockySprite(state: "rocky-sleeping", fallback: "south", size: 64)
                         .pokeable()
-                    Text("Rocky on watch. Run claude or codex in a terminal.")
+                    Text("Rocky on watch. Run claude, codex, or grok in a terminal.")
                         .font(.system(size: 11))
                         .foregroundStyle(Palette.inkTertiary)
                 }

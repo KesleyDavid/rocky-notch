@@ -53,6 +53,26 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertEqual(store.sessions["s1"]?.status, .waitingPermission)
     }
 
+    func testGrokPreToolUseMapsToPermissionWait() {
+        var store = SessionStore()
+        let env = HookEnvelope(
+            requestId: "r-grok",
+            hookPid: 1,
+            agent: "grok",
+            event: HookEvent(
+                sessionId: "s1",
+                hookEventName: "pre_tool_use",
+                cwd: "/tmp/proj",
+                toolName: "run_terminal_command",
+                toolInput: .object(["command": .string("ls")])
+            )
+        )
+        store.apply(env, at: t0)
+        XCTAssertEqual(store.sessions["s1"]?.agent, "grok")
+        XCTAssertEqual(store.sessions["s1"]?.status, .waitingPermission)
+        XCTAssertEqual(store.sessions["s1"]?.pending?.toolName, "run_terminal_command")
+    }
+
     func testNotificationTypes() {
         var store = SessionStore()
         store.apply(envelope("SessionStart"), at: t0)

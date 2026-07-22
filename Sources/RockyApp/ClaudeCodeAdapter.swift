@@ -19,8 +19,14 @@ enum IntegrationError: LocalizedError {
 struct AgentIntegration {
     let displayName: String
     let configURL: URL
+    /// Directory whose presence means the agent is installed on this machine.
+    /// Usually the config's parent; for Grok the config lives under
+    /// `~/.grok/hooks/` which may not exist until first install.
+    let presenceDirectory: URL
     let events: [(name: String, needsReply: Bool)]
     let commandArguments: String
+    /// Extra note shown in the install confirmation dialog.
+    let installNote: String
 
     /// The hook binary lives next to the app executable inside the bundle.
     static var hookBinaryPath: String {
@@ -29,31 +35,58 @@ struct AgentIntegration {
             .appendingPathComponent("rocky-hook").path
     }
 
+    private static var home: URL {
+        FileManager.default.homeDirectoryForCurrentUser
+    }
+
     static var claudeCode: AgentIntegration {
-        AgentIntegration(
+        let config = home.appendingPathComponent(".claude/settings.json")
+        return AgentIntegration(
             displayName: "Claude Code",
-            configURL: FileManager.default.homeDirectoryForCurrentUser
-                .appendingPathComponent(".claude/settings.json"),
+            configURL: config,
+            presenceDirectory: config.deletingLastPathComponent(),
             events: ClaudeSettingsMerger.claudeEvents,
-            commandArguments: ""
+            commandArguments: "",
+            installNote: ""
         )
     }
 
     static var codex: AgentIntegration {
-        AgentIntegration(
+        let config = home.appendingPathComponent(".codex/hooks.json")
+        return AgentIntegration(
             displayName: "Codex",
-            configURL: FileManager.default.homeDirectoryForCurrentUser
-                .appendingPathComponent(".codex/hooks.json"),
+            configURL: config,
+            presenceDirectory: config.deletingLastPathComponent(),
             events: ClaudeSettingsMerger.codexEvents,
-            commandArguments: "--agent codex"
+            commandArguments: "--agent codex",
+            installNote: ""
+        )
+    }
+
+    static var grok: AgentIntegration {
+        // Grok discovers `~/.grok/hooks/*.json` and merges them. A dedicated
+        // rocky.json keeps uninstall surgical (delete our file / unmerge).
+        let config = home.appendingPathComponent(".grok/hooks/rocky.json")
+        return AgentIntegration(
+            displayName: "Grok",
+            configURL: config,
+            presenceDirectory: home.appendingPathComponent(".grok"),
+            events: ClaudeSettingsMerger.grokEvents,
+            commandArguments: "--agent grok",
+            installNote: """
+
+            Grok uses PreToolUse (not PermissionRequest) for blocking hooks. \
+            Rocky auto-passes read-only tools and prompts for shell, edits, \
+            and other write actions. Deny always blocks. Allow lets Grok \
+            continue — pair with Grok's always-approve / bypassPermissions \
+            mode if you want Rocky to be the sole approval gate.
+            """
         )
     }
 
     /// Only offer integrations for CLIs that exist on this machine.
     var isAgentPresent: Bool {
-        FileManager.default.fileExists(
-            atPath: configURL.deletingLastPathComponent().path
-        )
+        FileManager.default.fileExists(atPath: presenceDirectory.path)
     }
 
     var isInstalled: Bool {
@@ -95,6 +128,12 @@ struct AgentIntegration {
             cleaned = try ClaudeSettingsMerger.unmerge(settings: existing)
         } catch {
             throw IntegrationError.unparseableSettings(configURL.path)
+        }
+        // For Grok's dedicated rocky.json, drop the file entirely when empty.
+        if let root = try? JSONSerialization.jsonObject(with: cleaned) as? [String: Any],
+           root.isEmpty || (root["hooks"] == nil && root.count <= 1) {
+            try? FileManager.default.removeItem(at: configURL)
+            return
         }
         try write(cleaned, backupOf: existing)
     }

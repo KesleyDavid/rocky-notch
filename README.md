@@ -6,7 +6,7 @@
 
 <p align="center">
   <b>Your AI coding agents, living in the notch.</b><br />
-  Watch every Claude Code and Codex session and approve permissions without leaving your flow.
+  Watch every Claude Code, Codex, and Grok session and approve permissions without leaving your flow.
 </p>
 
 <p align="center">
@@ -39,6 +39,7 @@ injection or screen scraping. The approval flow:
 
 ```
 Claude Code ── PermissionRequest hook ──▶ rocky-hook ── unix socket ──▶ Rocky
+Grok        ── PreToolUse hook         ──▶ rocky-hook ── unix socket ──▶ Rocky
      ◀── allow / deny ◀───────────────────────────────────◀── you click
 ```
 
@@ -55,7 +56,7 @@ prompt appears. Rocky can never block your work.
 - Token usage and working time per session
 - Rocky speaks in soft musical chimes when something needs you
 - Menu bar mode for notchless displays
-- Claude Code and Codex supported today; more agents welcome via PRs
+- Claude Code, Codex, and Grok supported today; more agents welcome via PRs
 - 100% local. No server, no telemetry, no account.
 
 ## Install
@@ -77,9 +78,18 @@ make run
 Then click the Rocky icon in the menu bar and install the integration for
 your agent. New sessions appear automatically.
 
-Rocky adds its hooks to `~/.claude/settings.json` (with a backup, merging
-conservatively, never touching your other settings). Removing the
-integration removes only Rocky's entries.
+Rocky adds its hooks to the agent config (with a backup, merging
+conservatively, never touching your other settings):
+
+| Agent | Config |
+|-------|--------|
+| Claude Code | `~/.claude/settings.json` |
+| Codex | `~/.codex/hooks.json` |
+| Grok | `~/.grok/hooks/rocky.json` |
+
+Removing the integration removes only Rocky's entries. Grok uses
+`PreToolUse` for blocking (it has no `PermissionRequest`); Rocky auto-passes
+read-only tools and prompts for shell, edits, and other write actions.
 
 ## Development
 
