@@ -189,4 +189,37 @@ public struct SessionStore: Equatable, Sendable {
                 || now.timeIntervalSince(session.lastEventAt) < orphanTimeout
         }
     }
+
+    /// Drop sessions whose host GUI process (terminal / IDE) is gone.
+    /// Returns pending request ids so the hub can cancel decision timeouts.
+    /// Sessions without a resolved `terminalAppPid` are left alone (orphan
+    /// timeout still applies).
+    @discardableResult
+    public mutating func pruneDeadHosts(isAlive: (Int32) -> Bool) -> [String] {
+        var abandoned: [String] = []
+        sessions = sessions.filter { _, session in
+            guard let pid = session.terminalAppPid else { return true }
+            if isAlive(pid) { return true }
+            if let requestId = session.pending?.requestId {
+                abandoned.append(requestId)
+            }
+            return false
+        }
+        return abandoned
+    }
+
+    /// Remove every session for a given agent (e.g. Cursor quit with no
+    /// sessionEnd hooks). Returns abandoned pending request ids.
+    @discardableResult
+    public mutating func removeSessions(agent: String) -> [String] {
+        var abandoned: [String] = []
+        sessions = sessions.filter { _, session in
+            guard session.agent == agent else { return true }
+            if let requestId = session.pending?.requestId {
+                abandoned.append(requestId)
+            }
+            return false
+        }
+        return abandoned
+    }
 }

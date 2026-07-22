@@ -53,10 +53,50 @@ final class AgentHub: ObservableObject {
         } catch {
             serverError = "failed to start IPC: \(error)"
         }
-        pruneTimer = Timer.scheduledTimer(withTimeInterval: 600, repeats: true) { _ in
+        // Host-process checks need to be snappy (Cursor quit → cards vanish).
+        // Long idle orphan pruning is cheap and shares the same tick.
+        pruneTimer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { _ in
             Task { @MainActor [weak self] in
-                self?.store.pruneOrphans(now: Date())
+                self?.pruneStaleSessions()
             }
+        }
+    }
+
+    /// Drop sessions that can no longer be interacted with:
+    /// 1. idle past `orphanTimeout` (2h)
+    /// 2. host GUI process (terminal/IDE) has exited
+    /// 3. Cursor app fully quit (sessionEnd often never fires on force-quit)
+    private func pruneStaleSessions() {
+        let before = Set(store.sessions.keys)
+        store.pruneOrphans(now: Date())
+
+        var abandoned = store.pruneDeadHosts { pid in
+            guard let app = NSRunningApplication(processIdentifier: pid) else {
+                return false
+            }
+            return !app.isTerminated
+        }
+
+        if !Self.isCursorRunning() {
+            abandoned += store.removeSessions(agent: "cursor")
+        }
+
+        for requestId in abandoned {
+            timeoutTasks[requestId]?.cancel()
+            timeoutTasks[requestId] = nil
+        }
+        for sessionId in before.subtracting(Set(store.sessions.keys)) {
+            transcripts.unwatch(sessionId: sessionId)
+        }
+    }
+
+    /// Cursor's bundle id is a todesktop hash and changes across builds; match
+    /// by localized name / bundle id substring.
+    static func isCursorRunning() -> Bool {
+        NSWorkspace.shared.runningApplications.contains { app in
+            let name = (app.localizedName ?? "").lowercased()
+            let bid = (app.bundleIdentifier ?? "").lowercased()
+            return name == "cursor" || bid.contains("cursor")
         }
     }
 
