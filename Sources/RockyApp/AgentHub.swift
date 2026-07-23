@@ -18,6 +18,9 @@ final class AgentHub: ObservableObject {
 
     var onPermissionRequest: ((AgentSession) -> Void)?
     var onSessionIdle: ((AgentSession) -> Void)?
+    /// An agent reported it cannot proceed without the user. Fires once, on the
+    /// transition, so a session that stays blocked doesn't nag.
+    var onWaitingInput: ((AgentSession) -> Void)?
 
     private let server: IPCServer
     private let transcripts = TranscriptWatcher()
@@ -158,6 +161,7 @@ final class AgentHub: ObservableObject {
 
         let knownBefore = Set(store.sessions.keys)
         let pendingBefore = store.sessions[envelope.event.sessionId]?.pending?.requestId
+        let statusBefore = store.sessions[envelope.event.sessionId]?.status
         store.apply(envelope, at: Date())
         // A pending request the store just dropped (tool ran, turn stopped, or
         // a newer request replaced it) still has a hook blocked on the other
@@ -196,14 +200,24 @@ final class AgentHub: ObservableObject {
             transcripts.unwatch(sessionId: sessionId)
         }
 
+        let session = store.sessions[envelope.event.sessionId]
+        // A session that just reported it is blocked on the user gets the same
+        // treatment as a permission card: say so once, on the transition.
+        if let session, session.status == .waitingInput, statusBefore != .waitingInput {
+            onWaitingInput?(session)
+        }
+
         switch envelope.event.kind {
         case .permissionRequest:
             scheduleTimeout(requestId: envelope.requestId)
-            if let session = store.sessions[envelope.event.sessionId] {
+            if let session {
                 onPermissionRequest?(session)
             }
         case .stop:
-            if let session = store.sessions[envelope.event.sessionId] {
+            // Stop also ends a turn the agent finished blocked on the user.
+            // Only a genuinely finished turn is "done" — chiming completion at
+            // someone whose answer is still pending would be a lie.
+            if let session, session.status == .idle {
                 onSessionIdle?(session)
                 celebrate(sessionId: session.id)
             }
