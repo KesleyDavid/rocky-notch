@@ -6,7 +6,7 @@ import Foundation
 /// ```
 /// { "version": 1, "hooks": { "beforeShellExecution": [{ "command": "…", "timeout": 60 }] } }
 /// ```
-/// Official Cursor hooks (no sessionStart/sessionEnd/preToolUse):
+/// Cursor hooks Rocky installs (the official hook set is larger):
 /// beforeSubmitPrompt, beforeShellExecution, beforeMCPExecution,
 /// beforeReadFile, afterFileEdit, stop.
 ///
@@ -21,12 +21,15 @@ public enum CursorSettingsMerger {
     public static let legacyMarker = "vibenotch-hook"
     public static let schemaVersion = 1
 
-    /// Cursor's six official hook events.
+    /// The six Cursor hook events Rocky currently uses.
     /// Blocking approval: shell + MCP. beforeReadFile is installed but
     /// fire-and-forget (timeout 10) so Rocky does not widen Cursor's own
-    /// read policy. afterFileEdit is observational only (no beforeWrite).
+    /// read policy. Cursor's generic preToolUse can deny writes, but cannot
+    /// route them to a human (`ask` is not enforced), so afterFileEdit stays
+    /// observational.
     /// Session cards are created on beforeSubmitPrompt; torn down via stop
-    /// (idle) + orphan/dead-host pruning (no sessionEnd).
+    /// (idle) + orphan/dead-host pruning. Cursor now documents sessionEnd,
+    /// but Rocky does not install it yet.
     public static let cursorEvents: [(name: String, needsReply: Bool)] = [
         ("beforeSubmitPrompt", false),
         ("beforeShellExecution", true),
@@ -36,8 +39,10 @@ public enum CursorSettingsMerger {
         ("stop", false),
     ]
 
-    /// Events we may have installed on older Rocky builds. unmerge sweeps
-    /// these so a reinstall does not leave dead keys in hooks.json.
+    /// Events older Rocky builds may have installed but the current event set
+    /// intentionally does not. Some are official Cursor hooks today; this is
+    /// a migration list, not a claim about Cursor's supported schema.
+    /// Unmerge sweeps them so a reinstall does not leave stale Rocky entries.
     public static let legacyEvents: [String] = [
         "sessionStart",
         "sessionEnd",

@@ -105,14 +105,16 @@ conservatively, never touching your other settings):
 Removing the integration removes only Rocky's entries. Grok uses
 `PreToolUse` for blocking (no `PermissionRequest`). Cursor uses its
 official hooks (`beforeShellExecution` / `beforeMCPExecution` for
-approval; `beforeSubmitPrompt` + `stop` for session lifecycle) — there is
-no `preToolUse` or `sessionStart` on Cursor, and file edits cannot be
-gated (`afterFileEdit` is observational only). Cursor's config is flat
-(`version` + hook command arrays). OpenCode has no shell hooks — Rocky
-installs a local JS plugin that bridges `permission.ask` and session
-events to `rocky-hook`. Restart OpenCode after install; approval cards
-only fire for tools set to `"ask"` in `opencode.json` (OpenCode defaults
-to allow-all).
+approval; `beforeSubmitPrompt` + `stop` for session lifecycle). Cursor
+also documents generic `preToolUse` and `sessionStart` / `sessionEnd`
+hooks, but Rocky does not install them today. `preToolUse` can deny file
+edits, but its `ask` response is not enforced, so it cannot hand a write
+to a person waiting in Rocky; `afterFileEdit` remains observational.
+Cursor's config is flat (`version` + hook command arrays). OpenCode has
+no shell hooks — Rocky installs a local JS plugin that bridges
+`permission.ask` and session events to `rocky-hook`. Restart OpenCode
+after install; approval cards only fire for tools set to `"ask"` in
+`opencode.json` (OpenCode defaults to allow-all).
 
 Kimi Code loads hooks from user plugins, so Rocky installs a dedicated
 `rocky-notch` plugin (a registry entry in `installed.json` plus its own
