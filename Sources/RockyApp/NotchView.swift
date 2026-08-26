@@ -9,7 +9,11 @@ struct NotchView: View {
     @ObservedObject var state: NotchUIState
     var notchWidth: CGFloat = 200
     var notchHeight: CGFloat = 37
-    /// Reports the expanded content's true height to the window controller.
+    /// Maximum height available below the cap on the current display. The
+    /// controller owns screen geometry; the view uses the value only to turn
+    /// overflowing session content into a scrollable viewport.
+    var maxContentHeight: CGFloat? = nil
+    /// Reports the expanded viewport's laid-out height to the window controller.
     /// A closure rather than published state: measurement happens during a view
     /// update, and mutating an `@ObservableObject` from there is the reentrancy
     /// the controller's own subscription already goes out of its way to avoid.
@@ -20,14 +24,14 @@ struct NotchView: View {
     static let expandedWidth: CGFloat = 560
     static let rowHeight: CGFloat = 40
     static let backgroundRowHeight: CGFloat = 20
-    /// A fan-out can be a dozen agents and the panel has no scroll, so the
-    /// nested rows are capped and the remainder is counted, never dropped.
+    /// Keep the resting fan-out compact; the full session console can scroll
+    /// when its combined rows exceed the display.
     static let maxBackgroundRows = 4
     /// The cap once the user opens the group, which is a wider allowance for
     /// something they explicitly asked to see — not an unlimited one. The
-    /// panel is clamped to the display and cannot scroll, so a fan-out of
-    /// thirty would push the rows below it off the bottom edge; past this the
-    /// remainder keeps being grouped, exactly as it is when closed.
+    /// panel can scroll, but an unbounded single fan-out would still drown the
+    /// other sessions; past this the remainder keeps being grouped, exactly as
+    /// it is when closed.
     static let maxExpandedBackgroundRows = 12
     static let wingWidth: CGFloat = 78
 
@@ -78,6 +82,19 @@ struct NotchView: View {
         hub.sessions.contains { $0.status == .running || $0.status == .delegating }
     }
 
+    /// Include the request id so a second request in the same session still
+    /// brings its card into view.
+    private var pendingScrollTarget: PendingScrollTarget? {
+        guard let session = hub.sessions.first(where: { $0.pending != nil }),
+              let requestId = session.pending?.requestId else { return nil }
+        return PendingScrollTarget(sessionId: session.id, requestId: requestId)
+    }
+
+    private struct PendingScrollTarget: Equatable {
+        let sessionId: String
+        let requestId: String
+    }
+
     private var cap: CGSize {
         Self.capSize(notchWidth: notchWidth, notchHeight: notchHeight)
     }
@@ -124,8 +141,9 @@ struct NotchView: View {
                         .allowsHitTesting(state.phase == .expanded)
                 }
             }
-            // Natural height, never the height the panel currently happens
-            // to be, so the console is laid out once and simply revealed.
+            // The console's own height (natural or display-bounded), never the
+            // height the panel currently happens to be, so it is laid out once
+            // and simply revealed.
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .center)
         }
@@ -403,26 +421,41 @@ struct NotchView: View {
     private var totalWork: TimeInterval { hub.sessions.reduce(0) { $0 + $1.activeSeconds } }
 
     private var expandedContent: some View {
-        SessionListView(
-            hub: hub,
-            attention: state.attention,
-            showsInsights: false,
-            expandedRows: state.expandedRows,
-            onToggleExpand: { state.toggleRow($0) },
-            expandedDelegations: state.expandedDelegations,
-            onToggleDelegation: { state.toggleDelegation($0) },
-            onDismiss: { hub.dismiss(sessionId: $0) }
-        )
-            .padding(.horizontal, 18)
-            .colorScheme(.dark)
+        ScrollViewReader { proxy in
+            ScrollView(.vertical) {
+                SessionListView(
+                    hub: hub,
+                    attention: state.attention,
+                    showsInsights: false,
+                    expandedRows: state.expandedRows,
+                    onToggleExpand: { state.toggleRow($0) },
+                    expandedDelegations: state.expandedDelegations,
+                    onToggleDelegation: { state.toggleDelegation($0) },
+                    onDismiss: { hub.dismiss(sessionId: $0) }
+                )
+                .padding(.horizontal, 18)
+            }
+            // Short lists keep their natural height; long lists stop at the
+            // display ceiling and become scrollable instead of being clipped.
             .frame(width: Self.expandedWidth)
-            // Report the ideal height rather than accepting whatever the panel
-            // currently offers — otherwise the measurement would echo back the
-            // window size and the panel could never learn it is too short.
+            .frame(maxHeight: maxContentHeight)
             .fixedSize(horizontal: false, vertical: true)
+            .scrollBounceBehavior(.basedOnSize)
+            .colorScheme(.dark)
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
                 onContentHeight(height)
             }
+            .onAppear {
+                guard let target = pendingScrollTarget else { return }
+                proxy.scrollTo(target.sessionId, anchor: .bottom)
+            }
+            .onChange(of: pendingScrollTarget) { _, target in
+                guard let target else { return }
+                withAnimation(.easeOut(duration: 0.2)) {
+                    proxy.scrollTo(target.sessionId, anchor: .bottom)
+                }
+            }
+        }
     }
 }
 
@@ -482,6 +515,7 @@ struct SessionListView: View {
                     if session.pending != nil {
                         VStack(spacing: 0) {
                             PendingSessionCard(session: session, hub: hub)
+                                .id(session.id)
                             // A session can be blocked on the user *and* still
                             // have agents running. Dropping the children while
                             // the card is up removed that context at the moment

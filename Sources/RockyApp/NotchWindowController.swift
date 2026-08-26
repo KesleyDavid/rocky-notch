@@ -133,7 +133,8 @@ final class NotchWindowController {
             notchWidth: m.notchWidth,
             // metrics already supplies a synthetic height for notchless
             // displays (the floating pill). Zeroing it left a 5pt-tall bar.
-            notchHeight: m.notchHeight
+            notchHeight: m.notchHeight,
+            maxContentHeight: Self.contentHeightCeiling(for: screen, metrics: m)
         )
         let hosting = NSHostingView(rootView: root)
         self.hosting = hosting
@@ -321,9 +322,25 @@ final class NotchWindowController {
         )
     }
 
-    /// The measured console height, clamped to what the display can actually
-    /// show. There is no scroll view, so a panel taller than the screen would
-    /// put Approve/Deny below the bottom edge, out of reach.
+    private static func panelHeightCeiling(for screen: NSScreen) -> CGFloat {
+        max(0, screen.frame.maxY - screen.visibleFrame.minY)
+    }
+
+    private static func contentHeightCeiling(
+        for screen: NSScreen,
+        metrics: (notchWidth: CGFloat, notchHeight: CGFloat, hasNotch: Bool)
+    ) -> CGFloat {
+        let cap = NotchView.capSize(
+            notchWidth: metrics.notchWidth,
+            notchHeight: metrics.notchHeight
+        )
+        return max(0, panelHeightCeiling(for: screen) - cap.height)
+    }
+
+    /// The measured viewport height, defensively clamped to what the display
+    /// can show. The SwiftUI viewport normally applies the same ceiling and
+    /// scrolls its content; this keeps the window safe during display changes
+    /// or a late measurement.
     private func expandedPanelSize() -> CGSize {
         let screen = targetScreen
         let m = screenMetrics ?? Self.metrics(for: screen)
@@ -332,7 +349,7 @@ final class NotchWindowController {
             notchWidth: m.notchWidth,
             notchHeight: m.notchHeight
         )
-        let ceiling = max(capSize().height, screen.frame.maxY - screen.visibleFrame.minY)
+        let ceiling = max(capSize().height, Self.panelHeightCeiling(for: screen))
         return CGSize(width: size.width, height: min(size.height, ceiling))
     }
 
@@ -349,16 +366,24 @@ final class NotchWindowController {
     private func layout() {
         let screen = targetScreen
         let m = Self.metrics(for: screen)
-        if screenMetrics == nil
+        let metricsChanged = screenMetrics == nil
             || screenMetrics!.notchWidth != m.notchWidth
             || screenMetrics!.notchHeight != m.notchHeight
-            || screenMetrics!.hasNotch != m.hasNotch {
+            || screenMetrics!.hasNotch != m.hasNotch
+        let contentCeiling = Self.contentHeightCeiling(for: screen, metrics: m)
+        var root = hosting.rootView
+        let contentCeilingChanged = root.maxContentHeight.map {
+            abs($0 - contentCeiling) > 0.5
+        } ?? true
+        if metricsChanged || contentCeilingChanged {
             screenMetrics = m
-            // The shape derives its cap from these; a display change used to
-            // leave the view with the metrics captured at init.
-            var root = hosting.rootView
-            root.notchWidth = m.notchWidth
-            root.notchHeight = m.notchHeight
+            if metricsChanged {
+                // The shape derives its cap from these; a display change used
+                // to leave the view with the metrics captured at init.
+                root.notchWidth = m.notchWidth
+                root.notchHeight = m.notchHeight
+            }
+            root.maxContentHeight = contentCeiling
             hosting.rootView = root
         }
 
@@ -490,7 +515,7 @@ final class NotchWindowController {
         }
     }
 
-    /// The console reports its true height from SwiftUI layout.
+    /// The console reports its laid-out viewport height from SwiftUI.
     private func contentHeightChanged(_ raw: CGFloat) {
         guard raw.isFinite, raw > 0 else { return }
         let scale = targetScreen.backingScaleFactor
