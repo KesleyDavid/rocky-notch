@@ -89,6 +89,34 @@ final class GitCommandRiskTests: XCTestCase {
         ])
     }
 
+    func testWrapperOptionValuesDoNotHideGit() {
+        assertRisk(.destructive, [
+            "sudo -u deploy git stash drop", "sudo -g staff -u deploy git stash drop",
+            "sudo -C 4 -h host -p prompt git stash drop", "sudo --user=deploy git stash drop",
+            "sudo -nu deploy git stash drop", "nice -n 10 git clean -fd",
+            "nice --adjustment=10 git stash drop", "env -u TOKEN -C /workspace git stash drop",
+            "env -S 'MODE=test' git stash drop", "sudo -u deploy nice -n 10 git clean -fd",
+        ])
+        assertRisk(.critical, [
+            "nice -n 10 git push origin :main", "xargs -I {} git push origin :{}",
+            "xargs -n 1 -P 2 -L 3 -s 4096 -d , -E end git push origin :main",
+            "xargs -I{} git push origin :{}", "timeout 10 git push origin :main",
+            "timeout -s TERM -k 2 10 git push origin :main",
+        ])
+        assertRisk(.elevated, [
+            "echo nice -n 10 git clean -fd", "echo xargs -I {} git push origin :{}",
+            "nice -n 10 git status", "env -- git status",
+        ])
+    }
+
+    func testWarningLabelsMatchEachRiskTier() {
+        for tier in [CommandRiskLevel.none, .low, .elevated] { XCTAssertNil(tier.warning) }
+        XCTAssertTrue(CommandRiskLevel.high.warning?.hasPrefix("high risk —") == true)
+        XCTAssertTrue(CommandRiskLevel.critical.warning?.hasPrefix("critical —") == true)
+        XCTAssertTrue(CommandRiskLevel.destructive.warning?.hasPrefix("destructive —") == true)
+        XCTAssertEqual(Set(CommandRiskLevel.allCases.compactMap(\.warning)).count, 3)
+    }
+
     func testOrdinaryGitStaysElevated() {
         assertRisk(.elevated, [
             "git push origin main",

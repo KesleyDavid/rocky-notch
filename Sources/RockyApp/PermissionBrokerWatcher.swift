@@ -14,6 +14,7 @@ final class PermissionBrokerWatcher {
     private var debounce: DispatchWorkItem?
 
     func start() {
+        monitor = PermissionBrokerMonitor(dismissedKeys: Preferences.dismissedBrokerKeys)
         refresh()
         timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.schedule() }
@@ -35,6 +36,11 @@ final class PermissionBrokerWatcher {
         watches.removeAll()
     }
 
+    func dismiss(_ findings: [PermissionBrokerFinding]) {
+        monitor.dismiss(findings)
+        Preferences.dismissedBrokerKeys = monitor.dismissedKeys
+    }
+
     private func schedule() {
         debounce?.cancel()
         let work = DispatchWorkItem { [weak self] in
@@ -48,7 +54,11 @@ final class PermissionBrokerWatcher {
         let sources = PermissionBrokerSource.defaults(
             home: NSHomeDirectory(), projects: projects(), environment: ProcessInfo.processInfo.environment
         )
+        let previouslyDismissed = monitor.dismissedKeys
         let appeared = monitor.check(sources: sources)
+        if monitor.dismissedKeys != previouslyDismissed {
+            Preferences.dismissedBrokerKeys = monitor.dismissedKeys
+        }
         onChange?(Array(monitor.current).sorted { $0.path < $1.path }, appeared)
         updateWatches(sources)
         if monitor.needsConfirmation { schedule() }

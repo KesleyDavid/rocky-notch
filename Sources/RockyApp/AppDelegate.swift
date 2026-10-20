@@ -239,11 +239,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // MARK: - Competing permission brokers
 
     private func startBrokerMonitoring() {
+        hub.onBrokerAlertDismissed = { [weak self] findings in
+            self?.brokerWatcher.dismiss(findings)
+        }
         brokerWatcher.projects = { [weak self] in self?.hub.sessions.compactMap(\.cwd) ?? [] }
         brokerWatcher.onChange = { [weak self] current, appeared in
             guard let self else { return }
             self.hub.competingBrokers = current
-            let retained = self.hub.brokerAlert.filter { current.contains($0) }
+            let retained = current.filter { self.hub.brokerAlert.contains($0) }
             self.hub.brokerAlert = Array(Set(retained + appeared)).sorted { ($0.agent, $0.path) < ($1.agent, $1.path) }
             guard !appeared.isEmpty else { return }
             // Reuse the nonactivating console; never interrupt the terminal or

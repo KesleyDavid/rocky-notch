@@ -18,6 +18,11 @@ enum Preferences {
         }
     }
 
+    static var dismissedBrokerKeys: Set<String> {
+        get { Set(UserDefaults.standard.stringArray(forKey: "dismissedBrokerKeys") ?? []) }
+        set { UserDefaults.standard.set(newValue.sorted(), forKey: "dismissedBrokerKeys") }
+    }
+
     static var soundsEnabled: Bool {
         get {
             UserDefaults.standard.object(forKey: "soundsEnabled") as? Bool ?? true

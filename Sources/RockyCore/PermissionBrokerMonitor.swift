@@ -5,6 +5,8 @@ public struct PermissionBrokerFinding: Hashable, Sendable {
     public let path: String
     public let detail: String
 
+    public var identityKey: String { "\(agent)|\(path)" }
+
     public static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.agent == rhs.agent && lhs.path == rhs.path
     }
@@ -24,6 +26,7 @@ public struct PermissionBrokerSource: Hashable, Sendable {
     public let agent: String
     public let path: String
     public let format: Format
+    var identityKey: String { "\(agent)|\(path)" }
 
     public init(agent: String, path: String, format: Format = .json) {
         self.agent = agent
@@ -48,6 +51,8 @@ public struct PermissionBrokerSource: Hashable, Sendable {
             ("augment", ".augment/settings.json", .json),
             ("copilot", ".copilot/hooks.json", .json),
             ("copilot", ".copilot/hooks/gitkraken-hooks.json", .json),
+            // Supplemental plugin-declaration configs, not GitKraken's installed
+            // bridge. A plugin reference alone is not proof of a blocking broker.
             ("opencode", ".config/opencode/opencode.json", .json),
             ("opencode", ".config/opencode/opencode.jsonc", .json),
             ("opencode", ".config/opencode/plugins/gk-hooks.js", .script),
@@ -159,7 +164,7 @@ public enum PermissionBrokerScan {
             guard hookRun, text.contains("--blocking") || text.contains("blocking=true") else { return [] }
             detail = "blocking gk-hooks bridge"
         case .json:
-            guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            guard let root = try? JSONSerialization.jsonObject(with: data, options: [.json5Allowed]) as? [String: Any]
             else { return nil }
             if root["disableAllHooks"] as? Bool == true { return [] }
             let plugins = root["enabledPlugins"] as? [String: Any] ?? [:]
@@ -177,13 +182,19 @@ public enum PermissionBrokerScan {
 public struct PermissionBrokerMonitor {
     public enum FileContents { case missing, unavailable, data(Data) }
     public private(set) var current: Set<PermissionBrokerFinding> = []
-    private var pendingDisappearances: Set<PermissionBrokerFinding> = []
+    public private(set) var dismissedKeys: Set<String>
+    private var pendingDisappearances: Set<String> = []
     private let read: (String) -> FileContents
 
     public var needsConfirmation: Bool { !pendingDisappearances.isEmpty }
 
-    public init(read: @escaping (String) -> FileContents = Self.readFile) {
+    public init(dismissedKeys: Set<String> = [], read: @escaping (String) -> FileContents = Self.readFile) {
+        self.dismissedKeys = dismissedKeys
         self.read = read
+    }
+
+    public mutating func dismiss(_ findings: [PermissionBrokerFinding]) {
+        dismissedKeys.formUnion(findings.filter { current.contains($0) }.map(\.identityKey))
     }
 
     public static func readFile(_ path: String) -> FileContents {
@@ -203,22 +214,29 @@ public struct PermissionBrokerMonitor {
             case .data(let data): findings = PermissionBrokerScan.inspect(data, source: source)
             }
             let previous = current.filter { $0.agent == source.agent && $0.path == source.path }
+            let key = source.identityKey
             if let findings {
                 found.formUnion(findings)
                 if findings.isEmpty {
-                    found.formUnion(previous.subtracting(pendingDisappearances))
-                    pendingDisappearances.formUnion(previous)
+                    if pendingDisappearances.remove(key) != nil {
+                        dismissedKeys.remove(key)
+                    } else if !previous.isEmpty || dismissedKeys.contains(key) {
+                        found.formUnion(previous)
+                        pendingDisappearances.insert(key)
+                    }
                 } else {
-                    pendingDisappearances.subtract(previous)
+                    pendingDisappearances.remove(key)
                 }
             } else {
                 found.formUnion(previous)
-                pendingDisappearances.subtract(previous)
+                pendingDisappearances.remove(key)
             }
         }
-        pendingDisappearances.formIntersection(found)
-        let appeared = found.subtracting(current)
+        pendingDisappearances.formIntersection(sources.map(\.identityKey))
+        let appeared = found.subtracting(current).filter { !dismissedKeys.contains($0.identityKey) }
         current = found
+        // Removal and reinstall while Rocky is closed cannot be distinguished
+        // from continuous presence, so an existing dismissal remains in effect.
         return appeared.sorted { ($0.agent, $0.path) < ($1.agent, $1.path) }
     }
 }

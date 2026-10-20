@@ -200,6 +200,66 @@ final class PermissionBrokerMonitorTests: XCTestCase {
         XCTAssertFalse(monitor.needsConfirmation)
     }
 
+    func testDismissedFindingSurvivesRelaunchAndRemainsListed() throws {
+        let source = PermissionBrokerSource(agent: "claude-code", path: "/fixture/settings.json")
+        let data = try hook(command)
+        var contents = PermissionBrokerMonitor.FileContents.data(data)
+        var monitor = PermissionBrokerMonitor(read: { _ in contents })
+        let appeared = monitor.check(sources: [source])
+        XCTAssertEqual(appeared.count, 1)
+        monitor.dismiss(appeared)
+        let savedKeys = Array(monitor.dismissedKeys).sorted()
+        XCTAssertEqual(savedKeys, ["claude-code|/fixture/settings.json"])
+        var relaunched = PermissionBrokerMonitor(dismissedKeys: Set(savedKeys), read: { _ in contents })
+        XCTAssertTrue(relaunched.check(sources: [source]).isEmpty)
+        XCTAssertEqual(relaunched.current.count, 1) // Settings must still list it.
+        for unreadable in [PermissionBrokerMonitor.FileContents.unavailable, .data(Data("{partial".utf8))] {
+            contents = unreadable
+            XCTAssertTrue(relaunched.check(sources: [source]).isEmpty)
+            XCTAssertEqual(relaunched.current.count, 1)
+            XCTAssertEqual(relaunched.dismissedKeys, Set(savedKeys))
+        }
+        contents = .data(data)
+        XCTAssertTrue(relaunched.check(sources: [source]).isEmpty)
+    }
+
+    func testDismissedFindingAlertsAgainOnlyAfterConfirmedRemoval() throws {
+        let source = PermissionBrokerSource(agent: "claude-code", path: "/fixture/settings.json")
+        let data = try hook(command)
+        for relaunch in [false, true] {
+            var contents = PermissionBrokerMonitor.FileContents.data(data)
+            var monitor = PermissionBrokerMonitor(read: { _ in contents })
+            let appeared = monitor.check(sources: [source])
+            monitor.dismiss(appeared)
+            XCTAssertEqual(monitor.dismissedKeys.count, 1)
+            if relaunch {
+                monitor = PermissionBrokerMonitor(dismissedKeys: monitor.dismissedKeys, read: { _ in contents })
+            }
+            contents = .missing
+            XCTAssertTrue(monitor.check(sources: [source]).isEmpty)
+            XCTAssertTrue(monitor.needsConfirmation)
+            XCTAssertEqual(monitor.dismissedKeys.count, 1)
+            XCTAssertTrue(monitor.check(sources: [source]).isEmpty)
+            XCTAssertFalse(monitor.needsConfirmation)
+            XCTAssertTrue(monitor.dismissedKeys.isEmpty)
+            contents = .data(data)
+            XCTAssertEqual(monitor.check(sources: [source]).count, 1)
+        }
+    }
+
+    func testCommentedOpenCodeConfigIsScannedReadOnly() {
+        let source = PermissionBrokerSource(agent: "opencode", path: "/fixture/opencode.jsonc")
+        let config = """
+        {
+          // A user-declared blocking gate, not the auto-loaded bridge.
+          "hooks": { "PermissionRequest": [{ "command": "gk ai hook run --blocking" }], },
+        }
+        """
+        XCTAssertEqual(PermissionBrokerScan.inspect(Data(config.utf8), source: source)?.count, 1)
+        let referenceOnly = #"{"plugin":["file:///fixture/gk-hooks.js"] /* presence does not prove blocking */}"#
+        XCTAssertEqual(PermissionBrokerScan.inspect(Data(referenceOnly.utf8), source: source), [])
+    }
+
     func testAllGitKrakenHostsHaveBoundedCandidates() {
         let sources = PermissionBrokerSource.defaults(home: "/fixture", projects: ["/workspace"])
         XCTAssertEqual(Set(sources.map(\.agent)), ["claude-code", "codex", "opencode", "cursor", "antigravity", "copilot", "pi", "augment", "grok"])

@@ -23,6 +23,13 @@ final class AgentHub: ObservableObject {
     static let hookTimeout: TimeInterval = 60
     var decisionTimeout: TimeInterval { Self.hookTimeout - 5 }
 
+    var onBrokerAlertDismissed: (([PermissionBrokerFinding]) -> Void)?
+
+    func dismissBrokerAlert() {
+        onBrokerAlertDismissed?(brokerAlert)
+        brokerAlert = []
+    }
+
     var onPermissionRequest: ((AgentSession) -> Void)?
     var onSessionIdle: ((AgentSession) -> Void)?
     /// Fires when a turn completes (for completion-card auto-expand).

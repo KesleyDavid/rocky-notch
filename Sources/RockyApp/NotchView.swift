@@ -494,7 +494,7 @@ struct PermissionBrokerBanner: View {
                 HStack {
                     Button("Open Settings", action: onOpenSettings)
                     Spacer()
-                    Button("Dismiss") { hub.brokerAlert = [] }
+                    Button("Dismiss") { hub.dismissBrokerAlert() }
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(Palette.amber)
@@ -1527,14 +1527,15 @@ struct PendingSessionCard: View {
                         Chip(text: terminal)
                     }
                 }
-                if ask == nil, let warning = ToolRiskClassifier.risk(
-                    toolName: pending.toolName, toolInput: pending.toolInput
-                ).warning {
-                    Text(warning)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Palette.red)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityLabel("Command risk: \(warning). Advisory only.")
+                if ask == nil {
+                    let risk = ToolRiskClassifier.risk(toolName: pending.toolName, toolInput: pending.toolInput)
+                    if let warning = risk.warning {
+                        Text(warning)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(risk == .high ? Palette.amber : Palette.red)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityLabel("Command risk: \(warning). Advisory only.")
+                    }
                 }
                 if let ask {
                     QuestionPicker(request: ask, pending: pending, hub: hub)

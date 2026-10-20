@@ -45,6 +45,21 @@ final class TurnOutcomeTests: XCTestCase {
         }
     }
 
+    func testMalformedOptionalOutcomeMetadataDoesNotDropStop() throws {
+        for key in ["terminationReason", "fullyIdle", "rocky_outcome"] {
+            for value in ["42", "true", "{}", "[]"] where !(key == "fullyIdle" && value == "true") {
+                let event = try decode("{\"session_id\":\"s\",\"hook_event_name\":\"Stop\",\"\(key)\":\(value)}")
+                XCTAssertEqual(event.kind, .stop)
+                XCTAssertEqual(event.outcome, .succeeded)
+                XCTAssertNil(event.fullyIdle)
+                var store = SessionStore()
+                store.apply(HookEnvelope(event: HookEvent(sessionId: "s", hookEventName: "UserPromptSubmit")), at: Date())
+                store.apply(HookEnvelope(event: event), at: Date())
+                XCTAssertEqual(store.sessions["s"]?.status, .idle)
+            }
+        }
+    }
+
     func testOldHookAndFutureOutcomeDefaults() throws {
         XCTAssertEqual(try decode(#"{"session_id":"s","hook_event_name":"Stop"}"#).outcome, .succeeded)
         XCTAssertEqual(try decode(#"{"session_id":"s","hook_event_name":"UserPromptSubmit"}"#).outcome, .none)

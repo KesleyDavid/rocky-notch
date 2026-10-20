@@ -17,7 +17,7 @@ public enum CommandRiskLevel: String, Codable, CaseIterable, Sendable, Comparabl
         case .critical:
             return "critical — may force updates, delete remote refs, or change privileged state"
         case .high:
-            return "critical — bypasses verification hooks (--no-verify / -n)"
+            return "high risk — bypasses verification hooks (--no-verify / -n)"
         default:
             return nil
         }

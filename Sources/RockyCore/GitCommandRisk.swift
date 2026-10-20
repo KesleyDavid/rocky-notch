@@ -68,7 +68,7 @@ static func analyze(_ command: String) -> Analysis {
     // MARK: - Segments
 
     private static let wrappers: Set<String> = [
-        "sudo", "env", "command", "exec", "nohup", "time", "xargs", "builtin", "nice",
+        "sudo", "env", "command", "exec", "nohup", "time", "xargs", "builtin", "nice", "timeout",
     ]
     /// Shell keywords that may precede a command in the same segment
     /// (`if x; then git push -f; fi`, `for b in …; do git push origin :$b; done`).
@@ -77,19 +77,57 @@ static func analyze(_ command: String) -> Analysis {
     ]
     private static let shells: Set<String> = ["sh", "bash", "zsh", "dash", "fish"]
 
-    /// Index of the program word, after `VAR=value` prefixes, shell keywords
-    /// and transparent wrappers (`sudo git …`) with their options.
+    private static let wrapperOptionsWithValues: [String: Set<String>] = [
+        "sudo": ["-u", "-g", "-C", "-h", "-p", "--user", "--group", "--close-from", "--host", "--prompt"],
+        "nice": ["-n", "--adjustment"],
+        "xargs": ["-I", "-n", "-P", "-L", "-s", "-d", "-E", "--max-args", "--max-procs",
+                  "--max-lines", "--max-chars", "--delimiter"],
+        "env": ["-u", "-S", "-C", "--unset", "--split-string", "--chdir"],
+        "timeout": ["-s", "-k", "--signal", "--kill-after"],
+        "exec": ["-a"],
+        "time": ["-o", "-f", "--output", "--format"],
+    ]
+
+    /// Skip assignments, shell keywords and transparent wrappers. Known options
+    /// consume their required value (separate or attached); timeout also consumes
+    /// its duration positional before looking for the wrapped program.
     private static func commandStart(of words: [String]) -> Int? {
         var index = 0
+        var wrapper: String?
         while index < words.count {
             let word = words[index]
-            if isAssignment(word) || keywords.contains(word) || wrappers.contains(basename(word)) {
+            if isAssignment(word) || keywords.contains(word) {
                 index += 1
                 continue
             }
-            // `sudo -u x git …` / `env -i git …`: wrapper options.
-            if word.hasPrefix("-"), index > 0 {
+            if wrappers.contains(basename(word)) {
+                wrapper = basename(word)
                 index += 1
+                continue
+            }
+            if let active = wrapper, word == "--" {
+                index += active == "timeout" ? 2 : 1
+                wrapper = nil
+                continue
+            }
+            if let active = wrapper, word.hasPrefix("-") {
+                let withValues = wrapperOptionsWithValues[active] ?? []
+                var consumesNext = withValues.contains(word)
+                if !word.hasPrefix("--") {
+                    let letters = Array(word.dropFirst())
+                    for (position, letter) in letters.enumerated() {
+                        if withValues.contains("-" + String(letter)) {
+                            consumesNext = position == letters.count - 1
+                            break
+                        }
+                    }
+                }
+                index += consumesNext ? 2 : 1
+                continue
+            }
+            if wrapper == "timeout" {
+                index += 1
+                wrapper = nil
                 continue
             }
             break

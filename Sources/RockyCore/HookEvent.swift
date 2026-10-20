@@ -184,7 +184,7 @@ public struct HookEvent: Codable, Equatable, Sendable {
         } else {
             outcome = TurnOutcome.normalized(
                 eventName: rawEventName,
-                terminationReason: try Self.decodeOptionalString(c, .terminationReason),
+                terminationReason: try? Self.decodeOptionalString(c, .terminationReason),
                 fullyIdle: fullyIdle
             )
         }
