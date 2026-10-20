@@ -37,7 +37,8 @@ enum Preferences {
     /// safety net; otherwise Rocky just observes Kimi sessions.
     static var kimiGateEnabled: Bool {
         get {
-            UserDefaults.standard.object(forKey: "kimiGateEnabled") as? Bool ?? false
+            // Also accepts the integration harness's non-persistent argument-domain override.
+            UserDefaults.standard.bool(forKey: "kimiGateEnabled")
         }
         set {
             UserDefaults.standard.set(newValue, forKey: "kimiGateEnabled")
